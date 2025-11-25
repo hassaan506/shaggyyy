@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mafia Wars Online</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="join-screen">
+  <h1>Mafia Wars</h1>
+  <input type="text" id="playerName" placeholder="Enter your name">
+  <button id="joinHost">Join as Host</button>
+  <button id="joinPlayer">Join as Player</button>
+</div>
+
+<div id="game-screen" class="hidden">
+  <div id="hostControls" class="hidden">
+    <h2>Host Panel</h2>
+    <button id="dealCards">Deal / Shuffle</button>
+    <button id="resetGame">Reset Game</button>
+    <button id="transferHost">Transfer Host</button>
+    <button id="toggleMode">Toggle Dark/Light Mode</button>
+  </div>
+
+  <div id="playersList"></div>
+  <div id="gameActions"></div>
+  <div id="messages"></div>
+  <button id="exitGame">Exit Game</button>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
