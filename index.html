@@ -3,15 +3,20 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-    <title>Mafia Wars/title>
-    <link rel="stylesheet" href="style.css?v=4.0">
+    <title>Mafia Wars</title>
+    <!-- Importing Special Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=5.0">
 </head>
 <body class="day">
 
+<!-- JOIN SCREEN -->
 <div id="screenJoin" class="screen">
     <div class="joinCard">
-        <h1>Mafia Wars</h1>
-        <h2>By Dr Shaggyyy</h2>
+        <!-- New Title & Font -->
+        <h1 class="gameTitle">Mafia Wars</h1>
+        <p class="author">By Dr Shaggyy</p>
+        
         <input type="text" id="playerName" placeholder="Enter your name" />
         <div class="joinBtns">
             <button id="joinHostBtn">Join as Host</button>
@@ -20,8 +25,10 @@
     </div>
 </div>
 
+<!-- GAME SCREEN -->
 <div id="screenGame" class="screen hidden">
 
+    <!-- Top bar: host info & controls -->
     <div class="topBar">
         <div class="hostSection">
             <h2 id="hostStatus">Waiting...</h2>
@@ -39,6 +46,7 @@
                 <button id="endVoteBtn" class="hidden">⚖️ End Vote</button>
                 <button id="resetBtn" style="background:#f44336">🔄 Reset</button>
             </div>
+            <!-- Live Feed for Host -->
             <div id="hostFeed" class="hostFeed hidden">
                 <h4>📡 Live Monitor</h4>
                 <ul id="liveVoteList"></ul>
@@ -46,6 +54,7 @@
         </div>
     </div>
 
+    <!-- CENTRAL DECK AREA -->
     <div id="tableArea" class="tableArea">
         <div id="centralDeck" class="deckWrapper">
             <div class="cardDeck">
@@ -57,12 +66,16 @@
         </div>
     </div>
 
+    <!-- Game state display -->
     <div class="gameContainer">
+        <!-- Players seats -->
         <div id="playersList" class="players"></div>
 
+        <!-- Right panel: actions & voting -->
         <div class="rightPanel">
             <div id="phaseBanner" class="phaseBanner">Phase: <span id="phaseText">Day</span></div>
 
+            <!-- Action panel (Night) -->
             <div id="actionPanel" class="panel hidden">
                 <h3>Night Action</h3>
                 <p id="actionInstruction">Select a target...</p>
@@ -70,6 +83,7 @@
                 <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
             </div>
 
+            <!-- Voting panel (Day) -->
             <div id="votingPanel" class="panel hidden">
                 <h3>Day Vote</h3>
                 <p id="voteInstruction">Who do you want to eliminate?</p>
@@ -77,6 +91,7 @@
                 <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
             </div>
 
+            <!-- Game log -->
             <div class="panel">
                 <h4>Game Log</h4>
                 <ul id="gameLog" class="log"></ul>
@@ -87,6 +102,7 @@
     <button id="exitBtn" class="exitBtn">Exit Game</button>
 </div>
 
+<!-- ROLE MODAL -->
 <div id="roleModal">
     <div class="modalContent">
         <h2 id="modalName">Player Name</h2>
@@ -96,6 +112,6 @@
     </div>
 </div>
 
-<script type="module" src="main.js?v=4.0"></script>
+<script type="module" src="main.js?v=5.0"></script>
 </body>
 </html>
