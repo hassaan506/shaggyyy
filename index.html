@@ -2,15 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Mafia Wars</title>
-    <link rel="stylesheet" href="style.css?v=3.0">
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+    <title>Mafia Wars/title>
+    <link rel="stylesheet" href="style.css?v=4.0">
 </head>
 <body class="day">
 
 <div id="screenJoin" class="screen">
     <div class="joinCard">
-        <h1>Mafia Wars Online</h1>
+        <h1>Mafia Wars</h1>
+        <h2>By Dr Shaggyyy</h2>
         <input type="text" id="playerName" placeholder="Enter your name" />
         <div class="joinBtns">
             <button id="joinHostBtn">Join as Host</button>
@@ -23,20 +24,25 @@
 
     <div class="topBar">
         <div class="hostSection">
-            <h2 id="hostStatus">Waiting for host...</h2>
+            <h2 id="hostStatus">Waiting...</h2>
             <div id="hostCard" class="hostCard">
-                <h3 id="hostName">Host: </h3>
+                <h3 id="hostName">Host</h3>
             </div>
         </div>
 
         <div id="hostControls" class="hidden">
-            <button id="shuffleBtn">🔀 Shuffle Deck</button>
-            <button id="dealBtn" disabled>🃏 Deal Roles</button>
-            <button id="resetBtn">🔄 Reset Game</button>
-            <button id="nightBtn">🌙 Start Night</button>
-            <button id="dayBtn">☀️ Start Day</button>
-            <button id="endVoteBtn" class="hidden">⚖️ End Vote</button>
-            <button id="cleanBtn">🧹 Clear Players</button>
+            <div class="btnGroup">
+                <button id="shuffleBtn">🔀 Shuffle</button>
+                <button id="dealBtn" disabled>🃏 Deal</button>
+                <button id="nightBtn">🌙 Night</button>
+                <button id="dayBtn">☀️ Day</button>
+                <button id="endVoteBtn" class="hidden">⚖️ End Vote</button>
+                <button id="resetBtn" style="background:#f44336">🔄 Reset</button>
+            </div>
+            <div id="hostFeed" class="hostFeed hidden">
+                <h4>📡 Live Monitor</h4>
+                <ul id="liveVoteList"></ul>
+            </div>
         </div>
     </div>
 
@@ -47,7 +53,7 @@
                 <img src="images/back.png" class="deckImg layer1">
                 <img src="images/back.png" class="deckImg layer2">
             </div>
-            <p id="deckStatus">Waiting to Deal...</p>
+            <p id="deckStatus">Tap to Shuffle</p>
         </div>
     </div>
 
@@ -59,14 +65,14 @@
 
             <div id="actionPanel" class="panel hidden">
                 <h3>Night Action</h3>
-                <p id="actionInstruction">No action required</p>
+                <p id="actionInstruction">Select a target...</p>
                 <div id="actionTargets" class="targets"></div>
                 <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
             </div>
 
             <div id="votingPanel" class="panel hidden">
                 <h3>Day Vote</h3>
-                <p id="voteInstruction">Select a player to vote</p>
+                <p id="voteInstruction">Who do you want to eliminate?</p>
                 <div id="voteTargets" class="targets"></div>
                 <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
             </div>
@@ -90,6 +96,6 @@
     </div>
 </div>
 
-<script type="module" src="main.js?v=3.0"></script>
+<script type="module" src="main.js?v=4.0"></script>
 </body>
 </html>
