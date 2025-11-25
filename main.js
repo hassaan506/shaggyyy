@@ -35,8 +35,6 @@ const exitBtn = document.getElementById("exitBtn");
 // Deck Elements
 const centralDeck = document.getElementById("centralDeck");
 const deckStatus = document.getElementById("deckStatus");
-// We grab the specific image for animation
-const deckImageElement = document.querySelector(".cardDeck"); 
 
 // Modal & Panels
 const roleModal = document.getElementById("roleModal");
@@ -54,50 +52,47 @@ const gameLog = document.getElementById("gameLog");
 let allPlayersCache = {}; 
 
 // --------------------------------------------------
-// SHUFFLE FUNCTION (Shared)
+// SHUFFLE & DEAL LOGIC
 // --------------------------------------------------
-function performShuffle() {
-    // 1. Visual Shake
-    if (deckImageElement) {
-        deckImageElement.classList.remove("shaking");
-        void deckImageElement.offsetWidth; // Trigger reflow to restart animation
-        deckImageElement.classList.add("shaking");
+
+// Simple Shuffle Function - Robust against errors
+function triggerShuffle() {
+    deckStatus.innerText = "Shuffling...";
+    
+    // Try to animate, but don't crash if it fails
+    const deckImg = document.querySelector(".cardDeck");
+    if(deckImg) {
+        deckImg.classList.remove("shaking");
+        void deckImg.offsetWidth; // Trigger reflow
+        deckImg.classList.add("shaking");
     }
 
-    deckStatus.innerText = "Shuffling...";
-
-    // 2. Logic delay
+    // Enable Deal Button after delay
     setTimeout(() => {
-        if (deckImageElement) deckImageElement.classList.remove("shaking");
+        if(deckImg) deckImg.classList.remove("shaking");
         deckStatus.innerText = "Deck Ready!";
-        
-        // 3. Enable Deal Button
         dealBtn.disabled = false;
         dealBtn.style.opacity = "1";
         dealBtn.style.cursor = "pointer";
-    }, 1500);
+    }, 1200);
 }
 
-// Attach Shuffle to Button
+// Click Listener for Button
 shuffleBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    performShuffle();
+    triggerShuffle();
 });
 
-// Attach Shuffle to the Card Image itself (UX improvement)
-if (deckImageElement) {
-    deckImageElement.addEventListener('click', () => {
-        // Only allow shuffle if we are host and deck isn't hidden
-        if (localStorage.getItem("isHost") === "true" && !centralDeck.classList.contains("hidden")) {
-            performShuffle();
+// Click Listener for Deck Image (Optional UX)
+if (centralDeck) {
+    centralDeck.addEventListener('click', () => {
+        // Allow clicking the deck image to shuffle if visible
+        if (!centralDeck.classList.contains("hidden") && localStorage.getItem("isHost") === "true") {
+            triggerShuffle();
         }
     });
 }
 
-
-// --------------------------------------------------
-// HOST ACTIONS
-// --------------------------------------------------
 dealBtn.addEventListener('click', async () => {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players joined yet.");
@@ -108,7 +103,6 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < players.length) roles.push("civilian");
     roles = roles.sort(() => Math.random() - 0.5);
 
-    // Assign roles but keep ALIVE true
     players.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { 
             role: roles[i] ?? "civilian",
@@ -116,15 +110,16 @@ dealBtn.addEventListener('click', async () => {
         });
     });
 
-    // CRITICAL: This flag tells the game "Okay, now show the cards"
+    // MARK DECK AS DEALT
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
 
+// --------------------------------------------------
+// STANDARD GAME CONTROLS
+// --------------------------------------------------
 resetBtn.addEventListener('click', async () => {
-    if (confirm("Reset entire game? This clears everyone.")) {
-        // We explicitly set deckDealt to false to fix the "Host sees cards" bug
-        await set(ref(db, "room/deckDealt"), false);
+    if (confirm("Reset entire game?")) {
         await remove(ref(db, "room"));
         localStorage.clear();
         location.reload();
@@ -203,9 +198,6 @@ endVoteBtn.addEventListener('click', async () => {
     await remove(ref(db, "room/votes"));
 });
 
-// --------------------------------------------------
-// PLAYER ACTIONS
-// --------------------------------------------------
 submitActionBtn.addEventListener('click', async () => {
     const myId = localStorage.getItem("playerId");
     const role = (await get(ref(db, `room/players/${myId}/role`))).val();
@@ -233,7 +225,7 @@ submitVoteBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// JOIN / STATE
+// JOINING
 // --------------------------------------------------
 window.onload = () => {
     if (localStorage.getItem("playerId")) {
@@ -247,14 +239,12 @@ joinHostBtn.addEventListener('click', async () => {
     if (!name) return;
     
     const snap = await get(ref(db, "room/host"));
-    if (snap.exists() && !confirm("Overwrite existing host?")) return;
-
-    // Remove old room data to ensure a clean slate
+    // Clean start for Host
     if (snap.exists()) await remove(ref(db, "room"));
 
     await set(ref(db, "room/host"), { name });
-    // FORCE deckDealt to FALSE so we see empty slots
-    await set(ref(db, "room/deckDealt"), false); 
+    // FORCE RESET DECK STATUS
+    await set(ref(db, "room/deckDealt"), false);
     
     localStorage.setItem("playerId", "HOST");
     localStorage.setItem("name", name);
@@ -303,28 +293,23 @@ onValue(ref(db, "room"), (snap) => {
     const isHost = localStorage.getItem("isHost") === "true";
     const myId = localStorage.getItem("playerId");
     
-    // Host Name
     if (data.host) document.getElementById("hostName").innerText = "Host: " + data.host.name;
-    
-    // Controls Visibility
     hostControls.classList.toggle("hidden", !isHost);
     
-    // Check Deal Status
-    // If deckDealt is missing or false, we are in "Waiting to Deal" mode
+    // CHECK IF DEALT
     const isDealt = data.deckDealt === true;
 
     if (isHost) {
         endVoteBtn.classList.toggle("hidden", data.gamePhase !== "day");
-        // If dealt, hide shuffle/deal buttons and central deck
         if (isDealt) {
+            // Game is live - hide deck
+            centralDeck.classList.add("hidden");
             shuffleBtn.disabled = true;
             dealBtn.disabled = true;
-            centralDeck.classList.add("hidden");
         } else {
-            // NOT Dealt yet
-            shuffleBtn.disabled = false; // Ensure enabled
+            // Waiting to deal - Show deck and shuffle
             centralDeck.classList.remove("hidden");
-            // dealBtn is handled by the Shuffle animation logic (starts disabled)
+            shuffleBtn.disabled = false;
         }
     } else {
         if (isDealt) centralDeck.classList.add("hidden");
@@ -333,7 +318,7 @@ onValue(ref(db, "room"), (snap) => {
 
     const phase = data.gamePhase || "Waiting";
     
-    // STATUS BANNER
+    // YOU ARE DEAD LOGIC
     const amIPlayer = data.players && data.players[myId];
     const amIDead = amIPlayer && !amIPlayer.alive;
 
@@ -357,14 +342,14 @@ onValue(ref(db, "room"), (snap) => {
             const isMe = pid === myId;
             const canSeeRole = isHost || isMe; 
 
-            // --- VISIBILITY LOGIC ---
-            // STRICT RULE: If !isDealt, EVERYONE (Host included) sees Empty Slot.
+            // --- EMPTY SLOT ENFORCEMENT ---
+            // If !isDealt, show Empty Slot. Ignore everything else.
             let cardContent = "";
 
             if (!isDealt) {
                 cardContent = `<div class="emptySlot">Empty Slot</div>`;
             } else {
-                // Deck is Dealt.
+                // Roles are dealt
                 if (canSeeRole) {
                     cardContent = `<img src="images/${p.role}.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
                 } else {
@@ -372,7 +357,6 @@ onValue(ref(db, "room"), (snap) => {
                 }
             }
 
-            // Hidden Death Logic
             const showRealStatus = isHost || isMe;
             const displayAlive = showRealStatus ? p.alive : true; 
 
@@ -383,7 +367,7 @@ onValue(ref(db, "room"), (snap) => {
             div.innerHTML = `<h3>${p.name}</h3>${cardContent}<p>${displayAlive ? "Alive" : "DEAD"}</p>`;
 
             div.addEventListener('click', () => {
-                // Click to reveal big card (Only if dealt)
+                // Only reveal if dealt
                 if (isDealt && canSeeRole && p.alive && p.role) {
                     modalName.innerText = p.name;
                     modalRole.src = `images/${p.role}.png`;
@@ -394,21 +378,19 @@ onValue(ref(db, "room"), (snap) => {
             playersList.appendChild(div);
 
             // BUTTONS
-            if (amIPlayer && amIPlayer.alive) {
-                if (displayAlive) { 
-                    if (phase === "night" && p.alive) {
-                        const myRole = amIPlayer.role;
-                        if (!isMe || myRole === "doctor") {
-                            if (["mafia", "godfather", "doctor", "detective"].includes(myRole)) {
-                                createBtn(document.getElementById("actionTargets"), p.name, pid, submitActionBtn, "target");
-                                actionPanel.classList.remove("hidden");
-                            }
+            if (amIPlayer && amIPlayer.alive && displayAlive) {
+                if (phase === "night" && p.alive) {
+                    const myRole = amIPlayer.role;
+                    if (!isMe || myRole === "doctor") {
+                        if (["mafia", "godfather", "doctor", "detective"].includes(myRole)) {
+                            createBtn(document.getElementById("actionTargets"), p.name, pid, submitActionBtn, "target");
+                            actionPanel.classList.remove("hidden");
                         }
                     }
-                    if (phase === "day" && !isMe) {
-                        createBtn(document.getElementById("voteTargets"), p.name, pid, submitVoteBtn, "vote");
-                        votingPanel.classList.remove("hidden");
-                    }
+                }
+                if (phase === "day" && !isMe) {
+                    createBtn(document.getElementById("voteTargets"), p.name, pid, submitVoteBtn, "vote");
+                    votingPanel.classList.remove("hidden");
                 }
             }
         });
