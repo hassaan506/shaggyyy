@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mafia Wars Online</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
+
 <body class="dark">
 
 <!-- JOIN SCREEN -->
@@ -23,20 +24,20 @@
 <!-- GAME SCREEN -->
 <div id="screenGame" class="screen hidden">
 
-    <!-- HOST SEAT -->
-    <div id="hostSeat">
-        <h3>Host</h3>
-        <div id="hostName"></div>
+    <!-- HOST AREA (always top and separate) -->
+    <div class="hostArea">
+        <h2 id="hostStatus">Waiting for host...</h2>
+        <div id="hostControls" class="hidden">
+            <button id="dealBtn">Deal Roles</button>
+            <button id="shuffleBtn">Shuffle</button>
+            <button id="resetBtn">Reset</button>
+            <button id="nightBtn">Night</button>
+            <button id="dayBtn">Day</button>
+        </div>
     </div>
 
-    <!-- HOST CONTROLS -->
-    <div id="hostControls" class="hidden">
-        <button id="dealBtn">Deal Roles</button>
-        <button id="resetBtn">Reset Game</button>
-    </div>
-
-    <!-- PLAYERS GRID -->
-    <div id="playersList" class="players"></div>
+    <!-- PLAYER GRID -->
+    <div id="playersList" class="playersGrid"></div>
 
     <button id="exitBtn" class="exitBtn">Exit Game</button>
 </div>
@@ -44,12 +45,12 @@
 <!-- ROLE MODAL -->
 <div id="roleModal">
     <div class="modalContent">
-        <h2 id="modalName">Player Name</h2>
-        <img id="modalRole" src="" alt="Role Card">
+        <h2 id="modalName"></h2>
+        <img id="modalRole" src="">
         <button class="closeModal" onclick="closeModal()">Close</button>
     </div>
 </div>
 
-<script type="module" src="main.js"></script>
+<script type="module" src="main.js?v=3"></script>
 </body>
 </html>
