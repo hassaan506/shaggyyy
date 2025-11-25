@@ -1,41 +1,19 @@
-/* Reset */
-* { margin:0; padding:0; box-sizing:border-box; font-family:sans-serif; }
-body.dark { background-color:#1e1e1e; color:#f0f0f0; min-height:100vh; display:flex; justify-content:center; align-items:center; }
-.screen { display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; }
-.hidden { display:none !important; }
-
-/* Join Screen */
-.joinCard { background:#2c2c2c; padding:40px 30px; border-radius:12px; box-shadow:0 0 20px rgba(0,0,0,0.5); text-align:center; max-width:350px; width:90%; }
-.joinCard h1 { margin-bottom:20px; font-size:28px; color:#ffd700; }
-.joinCard input { width:100%; padding:12px 15px; border-radius:8px; border:none; margin-bottom:15px; font-size:16px; background:#3a3a3a; color:#fff; }
-.joinBtns { display:flex; justify-content:center; }
-.joinBtns button { padding:10px 15px; margin:0 5px; border-radius:8px; border:none; background:#ffd700; color:#1e1e1e; font-weight:bold; cursor:pointer; }
-.joinBtns button:hover { background:#ffcf33; }
-
-/* Game Screen */
-#screenGame { width:95%; flex-direction:column; align-items:center; }
-.topBar { width:100%; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-#hostControls button { margin-left:5px; }
-
-/* Players */
-.players { display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:15px; width:100%; justify-items:center; margin-bottom:20px; }
-.playerSeat { background:#2c2c2c; padding:10px; border-radius:10px; width:100px; text-align:center; display:flex; flex-direction:column; align-items:center; }
-.playerSeat img { width:80px; height:120px; object-fit:cover; margin-bottom:5px; border-radius:6px; transition: transform 0.2s; }
-.playerSeat img:hover { transform:scale(1.05); }
-.playerName { font-size:14px; font-weight:bold; }
-.dead { opacity:0.5; }
-
-/* Exit Button */
-.exitBtn { background:#ff4c4c; color:white; width:150px; padding:10px; border-radius:8px; border:none; font-weight:bold; cursor:pointer; margin-top:10px; }
-.exitBtn:hover { background:#ff1a1a; }
-
-/* Role Modal */
-#roleModal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:none; justify-content:center; align-items:center; z-index:1000; }
-#roleModal .modalContent { background:#2c2c2c; padding:30px; border-radius:12px; text-align:center; width:250px; }
-#roleModal h2 { margin-bottom:15px; color:#ffd700; }
-#roleModal img { width:150px; height:220px; margin-bottom:15px; border-radius:6px; }
-.closeModal { padding:10px 15px; border:none; border-radius:8px; background:#ffd700; color:#1e1e1e; font-weight:bold; cursor:pointer; }
-.closeModal:hover { background:#ffcf33; }
-
-/* Mobile */
-@media(max-width:600px){.players{grid-template-columns:repeat(auto-fit,minmax(80px,1fr));}.playerSeat img{width:60px;height:90px;}#roleModal img{width:120px;height:180px;}}
+body{margin:0;font-family:sans-serif;}
+.screen{width:100%;height:100vh;display:flex;justify-content:center;align-items:center;flex-direction:column;background:#111;color:#fff;}
+.hidden{display:none;}
+.joinCard{background:#222;padding:20px;border-radius:10px;text-align:center;box-shadow:0 0 15px #000;}
+.joinCard input{padding:10px;width:200px;margin-bottom:10px;border-radius:5px;border:none;}
+.joinCard button{padding:10px 15px;margin:5px;border-radius:5px;border:none;cursor:pointer;background:#444;color:#fff;}
+.joinCard button:hover{background:#666;}
+.topBar{width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px;background:#222;}
+.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:15px;width:90%;margin-top:20px;}
+.playerSeat{background:#222;padding:10px;border-radius:10px;text-align:center;display:flex;flex-direction:column;align-items:center;}
+.playerSeat img{width:80px;height:120px;margin-bottom:5px;}
+.playerName{color:#fff;font-size:14px;}
+.dead .playerName{color:red;}
+.exitBtn{margin-top:20px;padding:10px 20px;border:none;border-radius:5px;background:red;color:#fff;cursor:pointer;}
+#roleModal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:none;justify-content:center;align-items:center;}
+.modalContent{background:#222;padding:20px;border-radius:10px;text-align:center;}
+.modalContent img{width:120px;height:180px;margin:10px 0;}
+.modalContent button{padding:8px 15px;border:none;border-radius:5px;background:#444;color:#fff;cursor:pointer;}
+.modalContent button:hover{background:#666;}
