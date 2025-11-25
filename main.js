@@ -104,10 +104,9 @@ joinHostBtn.addEventListener('click', async () => {
     const snap = await get(ref(db, "room/host"));
     if (snap.exists()) {
         if(!confirm("Host exists. Overwrite?")) return;
-        await remove(ref(db, "room")); // Clear room
+        await remove(ref(db, "room")); 
     }
 
-    // Host is separate from players
     await set(ref(db, "room/host"), { name });
     
     localStorage.setItem("playerId", "HOST");
@@ -179,27 +178,35 @@ dayBtn.addEventListener('click', async () => {
     
     const nightSnap = await get(ref(db, "room/night"));
     const night = nightSnap.val() || {};
-    let victim = null;
-    let victimName = "No one";
+    
+    let victimId = null;
+    let victimName = "Nobody";
+    let statusMessage = "";
+
+    // Calculate names for Host Report
+    const mafiaTargetName = night.mafiaTarget ? getName(night.mafiaTarget) : "No one";
+    const doctorSaveName = night.doctorSave ? getName(night.doctorSave) : "No one";
 
     // Resolve Mafia Kill
     if (night.mafiaTarget) {
-        if (night.mafiaTarget !== night.doctorSave) {
-            victim = night.mafiaTarget;
-            const pSnap = await get(ref(db, `room/players/${victim}`));
-            victimName = pSnap.exists() ? pSnap.val().name : "Unknown";
-            await update(ref(db, `room/players/${victim}`), { alive: false });
+        if (night.mafiaTarget === night.doctorSave) {
+            statusMessage = `Mafia targeted ${mafiaTargetName}, but Doctor saved them!`;
+        } else {
+            victimId = night.mafiaTarget;
+            victimName = mafiaTargetName;
+            statusMessage = `${mafiaTargetName} was killed by Mafia.`;
+            await update(ref(db, `room/players/${victimId}`), { alive: false });
         }
+    } else {
+        statusMessage = "Mafia did not select a target.";
     }
 
+    // Clear votes and change phase
     await remove(ref(db, "room/votes"));
     await set(ref(db, "room/gamePhase"), "day");
 
-    if (victim) {
-        alert(`Night Report: ${victimName} was killed!`);
-    } else {
-        alert("Night Report: Nobody died last night.");
-    }
+    // ALERT ONLY FOR HOST
+    alert(`📢 HOST REPORT (Private):\n\n- Mafia Targeted: ${mafiaTargetName}\n- Doctor Saved: ${doctorSaveName}\n\n👉 Outcome: ${statusMessage}`);
 
     checkWinCondition();
 });
@@ -224,11 +231,11 @@ endVoteBtn.addEventListener('click', async () => {
         }
     }
 
-    // Name Lookup for Host Results
+    // Name Lookup
+    let resultsMessage = `Voting Results:\n`;
     const playersSnap = await get(ref(db, "room/players"));
     const currentPlayers = playersSnap.val();
     
-    let resultsMessage = `Voting Results:\n`;
     for (const pid in voteCount) {
         const name = currentPlayers[pid] ? currentPlayers[pid].name : "Unknown";
         resultsMessage += `- ${name}: ${voteCount[pid]} votes\n`;
@@ -322,19 +329,16 @@ onValue(ref(db, "room"), (snap) => {
     
     if (isHost) endVoteBtn.classList.toggle("hidden", phase !== "day");
 
-    // Clear Lists (simplest approach for updating)
+    // Clear Lists
     playersList.innerHTML = "";
     if(phase !== "night") actionTargets.innerHTML = "";
     if(phase !== "day") voteTargets.innerHTML = "";
 
-    // If host, myId is "HOST" which is not in players list.
-    // If player, myId is in players list.
     const amIPlayer = data.players && data.players[myId];
 
     if (data.players) {
         Object.entries(data.players).forEach(([pid, p]) => {
             const isMe = pid === myId;
-            // Host sees all roles. Players see their own role.
             const canSeeRole = isHost || isMe; 
             const imgName = (canSeeRole && p.role) ? p.role : "back";
             
@@ -360,17 +364,27 @@ onValue(ref(db, "room"), (snap) => {
             playersList.appendChild(div);
 
             // LOGIC FOR BUTTONS (Only if I am a player)
-            if (amIPlayer && amIPlayer.alive && !isMe && p.alive) {
-                // Night Actions
+            if (amIPlayer && amIPlayer.alive && p.alive) {
+                
+                // NIGHT ACTIONS
                 if (phase === "night") {
                     const myRole = amIPlayer.role;
-                    if (["mafia", "godfather", "doctor", "detective"].includes(myRole)) {
-                        if(actionTargets.innerHTML === "") actionPanel.classList.remove("hidden");
-                        createTargetBtn(actionTargets, p.name, pid, submitActionBtn, "target");
+                    
+                    // DOCTOR EXCEPTION: Doctor CAN target self
+                    const isDoctor = myRole === "doctor";
+                    const canTargetSelf = isDoctor;
+
+                    // If it's NOT me, OR if it IS me and I'm a Doctor
+                    if (!isMe || canTargetSelf) {
+                        if (["mafia", "godfather", "doctor", "detective"].includes(myRole)) {
+                            if(actionTargets.innerHTML === "") actionPanel.classList.remove("hidden");
+                            createTargetBtn(actionTargets, p.name, pid, submitActionBtn, "target");
+                        }
                     }
                 }
-                // Day Votes
-                if (phase === "day") {
+
+                // DAY VOTES (Cannot vote self)
+                if (phase === "day" && !isMe) {
                     if(voteTargets.innerHTML === "") votingPanel.classList.remove("hidden");
                     createTargetBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
                 }
@@ -378,7 +392,6 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
 
-    // Hide panels if logic didn't trigger
     if (!amIPlayer) {
         actionPanel.classList.add("hidden");
         votingPanel.classList.add("hidden");
@@ -387,7 +400,6 @@ onValue(ref(db, "room"), (snap) => {
 
 // Helper for mobile touch & click support
 function createTargetBtn(container, name, pid, submitBtn, datasetKey) {
-    // Avoid duplicates in the loop
     const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
     if(existing) return;
 
@@ -397,7 +409,7 @@ function createTargetBtn(container, name, pid, submitBtn, datasetKey) {
     btn.dataset.pid = pid; 
 
     const selectHandler = (e) => {
-        if(e.cancelable) e.preventDefault(); // Stop ghost clicks on mobile
+        if(e.cancelable) e.preventDefault();
         Array.from(container.children).forEach(b => b.classList.remove("selected"));
         btn.classList.add("selected");
         submitBtn.disabled = false;
