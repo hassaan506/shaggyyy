@@ -54,7 +54,10 @@ body.night { background-color: #0b0b12; color: #ffffff; transition: background-c
 .modalContent { background: #fff; padding: 15px; border-radius: 10px; text-align: center; width: 95%; max-width: 300px; }
 .modalContent img { width: 90px; height: 130px; margin: 10px 0; object-fit: cover; }
 
-/* muted text */
+@media (max-width: 350px) {
+    .modalContent { width: 85%; }
+}
+
 .muted { font-size: 12px; color: #666; margin-top:4px; }
 
 /* RESPONSIVE */
