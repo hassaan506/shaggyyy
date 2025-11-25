@@ -51,27 +51,26 @@ let allPlayersCache = {};
 let myCurrentRole = null;
 
 // --------------------------------------------------
-// SHUFFLE & DEAL
+// SHUFFLE & DEAL (Networked)
 // --------------------------------------------------
-function triggerShuffle() {
-    deckStatus.innerText = "Shuffling...";
-    const deckImg = document.querySelector(".cardDeck");
-    if(deckImg) {
-        deckImg.classList.remove("shaking");
-        void deckImg.offsetWidth; 
-        deckImg.classList.add("shaking");
-    }
-    setTimeout(() => {
-        if(deckImg) deckImg.classList.remove("shaking");
-        deckStatus.innerText = "Ready to Deal!";
-        dealBtn.disabled = false;
-        dealBtn.style.opacity = "1";
-    }, 1200);
-}
+shuffleBtn.addEventListener('click', async () => {
+    // 1. Update DB to tell EVERYONE to animate
+    await set(ref(db, "room/isShuffling"), true);
 
-shuffleBtn.addEventListener('click', triggerShuffle);
-if (centralDeck) centralDeck.addEventListener('click', () => {
-    if (!centralDeck.classList.contains("hidden") && localStorage.getItem("isHost") === "true") triggerShuffle();
+    // 2. Wait 1.2s, then stop animation and enable Deal (Host only logic)
+    setTimeout(async () => {
+        await set(ref(db, "room/isShuffling"), false);
+        // Note: Enabling the button is handled purely by the host, 
+        // but visual state is handled in onValue
+    }, 1200);
+});
+
+// Allow tapping deck to shuffle (Host only)
+if (centralDeck) centralDeck.addEventListener('click', async () => {
+    if (!centralDeck.classList.contains("hidden") && localStorage.getItem("isHost") === "true") {
+        await set(ref(db, "room/isShuffling"), true);
+        setTimeout(async () => { await set(ref(db, "room/isShuffling"), false); }, 1200);
+    }
 });
 
 dealBtn.addEventListener('click', async () => {
@@ -153,7 +152,8 @@ endVoteBtn.addEventListener('click', async () => {
 });
 
 resetBtn.addEventListener('click', async () => {
-    if (confirm("Reset Game?")) {
+    if (confirm("Reset Game? This will kick all players.")) {
+        // Deleting the room triggers the 'kick' logic in onValue for everyone else
         await remove(ref(db, "room"));
         localStorage.clear();
         location.reload();
@@ -224,7 +224,18 @@ onValue(ref(db, "room/votes"), (snap) => {
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
-    if (!data) return;
+
+    // --- GLOBAL RESET / KICK LOGIC ---
+    // If data is null, it means the Host has deleted the room.
+    // We force a reload for everyone currently in the game.
+    if (!data) {
+        if (localStorage.getItem("playerId")) {
+            localStorage.clear();
+            alert("The Host has ended the game.");
+            location.reload();
+        }
+        return;
+    }
 
     allPlayersCache = data.players || {};
     const isHost = localStorage.getItem("isHost") === "true";
@@ -235,10 +246,30 @@ onValue(ref(db, "room"), (snap) => {
     hostControls.classList.toggle("hidden", !isHost);
     hostFeed.classList.toggle("hidden", !isHost);
 
-    // Deck Visibility
+    // --- DECK & SHUFFLE VISIBILITY ---
     const isDealt = data.deckDealt === true;
-    centralDeck.classList.toggle("hidden", isDealt || (!isHost && !isDealt)); // Only host sees deck before deal
-    if(isHost && isDealt) { shuffleBtn.disabled = true; dealBtn.disabled = true; }
+    
+    // Visibility: Everyone sees the deck unless it is dealt.
+    if (isDealt) {
+        centralDeck.classList.add("hidden");
+        if(isHost) { shuffleBtn.disabled = true; dealBtn.disabled = true; }
+    } else {
+        centralDeck.classList.remove("hidden");
+        // Update status text and shake class based on DB state
+        const deckImg = document.querySelector(".cardDeck");
+        if (data.isShuffling) {
+             if(deckImg) deckImg.classList.add("shaking");
+             deckStatus.innerText = "Shuffling...";
+        } else {
+             if(deckImg) deckImg.classList.remove("shaking");
+             deckStatus.innerText = isHost ? "Tap to Shuffle" : "Waiting for Host...";
+             // Host Logic: Enable deal button if shuffle finished
+             if(isHost && !shuffleBtn.disabled) {
+                 dealBtn.disabled = false;
+                 dealBtn.style.opacity = "1";
+             }
+        }
+    }
 
     const phase = data.gamePhase || "Waiting";
     document.getElementById("phaseText").innerText = phase;
@@ -247,7 +278,7 @@ onValue(ref(db, "room"), (snap) => {
     // Host Vote Button Visibility
     if(isHost) endVoteBtn.classList.toggle("hidden", phase !== "day");
 
-    // Clear Button Containers (We rebuild to ensure state is fresh)
+    // Clear Button Containers
     if(phase !== "night") actionTargets.innerHTML = "";
     if(phase !== "day") voteTargets.innerHTML = "";
 
@@ -263,10 +294,6 @@ onValue(ref(db, "room"), (snap) => {
             const isMe = pid === myId;
             const targetIsMafia = (p.role === "mafia" || p.role === "godfather");
             
-            // --- VISIBILITY RULES ---
-            // 1. Host sees all.
-            // 2. I see myself.
-            // 3. Mafia see other Mafia.
             const canSeeRole = isHost || isMe || (amIMafia && targetIsMafia);
             
             // Card Graphic
@@ -277,8 +304,8 @@ onValue(ref(db, "room"), (snap) => {
             }
 
             // Death Status
-            const realStatus = isHost || isMe; // Only host/me know if I'm dead
-            const displayAlive = realStatus ? p.alive : true; // Others see me as alive
+            const realStatus = isHost || isMe;
+            const displayAlive = realStatus ? p.alive : true; 
 
             // Render Card
             const div = document.createElement("div");
@@ -296,28 +323,19 @@ onValue(ref(db, "room"), (snap) => {
             playersList.appendChild(div);
 
             // --- BUTTON GENERATION ---
-            // Only generate buttons if I am alive and Phase matches
             if (me && me.alive && displayAlive) {
                 
                 // NIGHT ACTIONS
                 if (phase === "night" && p.alive) {
-                    // Logic: 
-                    // 1. Mafia CANNOT target Mafia.
-                    // 2. Doctor CAN target self.
-                    // 3. Others CANNOT target self.
-                    
                     let canTarget = false;
                     
                     if (amIMafia) {
-                        // Mafia: Target anyone EXCEPT other Mafia
                         if (!targetIsMafia) canTarget = true;
                     } 
                     else if (myCurrentRole === "doctor") {
-                        // Doctor: Target anyone (including self)
                         canTarget = true;
                     } 
                     else if (myCurrentRole === "detective") {
-                        // Detective: Target anyone EXCEPT self
                         if (!isMe) canTarget = true;
                     }
 
@@ -328,7 +346,6 @@ onValue(ref(db, "room"), (snap) => {
                 }
 
                 // DAY VOTES
-                // Logic: Vote anyone except self
                 if (phase === "day" && !isMe) {
                     createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
                     votingPanel.classList.remove("hidden");
@@ -337,7 +354,6 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
 
-    // Dead Banner
     if (me && !me.alive) {
         document.getElementById("phaseText").innerText = "YOU ARE DEAD 💀";
         document.body.className = "night";
@@ -345,7 +361,6 @@ onValue(ref(db, "room"), (snap) => {
 });
 
 function createBtn(container, name, pid, btn, datasetKey) {
-    // Prevent duplicates
     const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
     if(existing) return;
 
@@ -353,17 +368,12 @@ function createBtn(container, name, pid, btn, datasetKey) {
     b.innerText = name;
     b.dataset.pid = pid;
     
-    // Universal Click/Touch Handler
     const handleSelect = (e) => {
-        if(e.cancelable) e.preventDefault(); // Stop double-firing on mobile
-        
-        // Visual select
+        if(e.cancelable) e.preventDefault(); 
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
         b.classList.add("selected");
-        
-        // Enable Submit
         btn.disabled = false;
-        btn.dataset[datasetKey] = pid; // Store ID in the submit button
+        btn.dataset[datasetKey] = pid;
     };
 
     b.addEventListener('click', handleSelect);
@@ -393,6 +403,7 @@ joinHostBtn.addEventListener('click', async () => {
     if (!name) return;
     await set(ref(db, "room/host"), { name });
     await set(ref(db, "room/deckDealt"), false); 
+    await set(ref(db, "room/isShuffling"), false); 
     localStorage.setItem("playerId", "HOST");
     localStorage.setItem("name", name);
     localStorage.setItem("isHost", "true");
