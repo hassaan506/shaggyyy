@@ -11,10 +11,11 @@ const firebaseConfig = {
     messagingSenderId: "320339228878",
     appId: "1:320339228878:web:c6137210b403c19fc9389f"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// DOM
+// DOM Elements
 const screenJoin = document.getElementById("screenJoin");
 const screenGame = document.getElementById("screenGame");
 const joinHostBtn = document.getElementById("joinHostBtn");
@@ -22,7 +23,6 @@ const joinPlayerBtn = document.getElementById("joinPlayerBtn");
 const playerNameInput = document.getElementById("playerName");
 const playersList = document.getElementById("playersList");
 const hostControls = document.getElementById("hostControls");
-const hostStatus = document.getElementById("hostStatus");
 const exitBtn = document.getElementById("exitBtn");
 const dealBtn = document.getElementById("dealBtn");
 const resetBtn = document.getElementById("resetBtn");
@@ -37,7 +37,7 @@ let myName = "";
 let mySeat = null;
 let isHost = false;
 
-// ---------- Restore LocalStorage ----------
+// Restore previous session if exists
 window.onload = async () => {
     const storedName = localStorage.getItem("myName");
     const storedSeat = localStorage.getItem("mySeat");
@@ -51,7 +51,7 @@ window.onload = async () => {
     }
 };
 
-// ---------- Join as Host ----------
+// Join as Host
 joinHostBtn.onclick = async () => {
     myName = playerNameInput.value.trim();
     if(!myName) return alert("Enter your name");
@@ -69,7 +69,7 @@ joinHostBtn.onclick = async () => {
     joinGame();
 };
 
-// ---------- Join as Player ----------
+// Join as Player
 joinPlayerBtn.onclick = async () => {
     myName = playerNameInput.value.trim();
     if(!myName) return alert("Enter your name");
@@ -94,7 +94,7 @@ joinPlayerBtn.onclick = async () => {
     alert("No empty seats left");
 };
 
-// ---------- Join Screen → Game Screen ----------
+// Show Game Screen
 function joinGame(){
     screenJoin.style.display="none";
     screenGame.style.display="flex";
@@ -102,13 +102,15 @@ function joinGame(){
     renderPlayers();
 }
 
-// ---------- Render Players ----------
+// Render host and players
 function renderPlayers(){
+    // Host seat
     onValue(ref(db,"game/host"), snap=>{
         const host = snap.val();
         hostNameDiv.textContent = host ? host.name : "";
     });
 
+    // Player seats 1–9 only
     onValue(ref(db, "game/players"), snap => {
         const players = snap.val() || {};
         playersList.innerHTML = "";
@@ -123,28 +125,34 @@ function renderPlayers(){
                 img.src = (isHost || i===mySeat) ? `images/${role}.png` : "images/back.png";
                 const nameDiv = document.createElement("div");
                 nameDiv.className="playerName";
-                nameDiv.textContent=players[i].name;
-                div.appendChild(img); div.appendChild(nameDiv);
+                nameDiv.textContent = players[i].name;
+                div.appendChild(img);
+                div.appendChild(nameDiv);
                 div.onclick=()=>{if(isHost || i===mySeat){openModal(players[i].name, players[i].role);}};
             }else{
-                const img = document.createElement("img"); img.src="images/back.png";
-                const nameDiv = document.createElement("div"); nameDiv.className="playerName"; nameDiv.textContent="Empty";
-                div.appendChild(img); div.appendChild(nameDiv);
+                const img = document.createElement("img");
+                img.src="images/back.png";
+                const nameDiv = document.createElement("div");
+                nameDiv.className="playerName";
+                nameDiv.textContent="Empty";
+                div.appendChild(img);
+                div.appendChild(nameDiv);
             }
+
             playersList.appendChild(div);
         }
     });
 }
 
-// ---------- Role Modal ----------
-function openModal(name,role){
-    modalName.textContent=name;
-    modalRole.src=`images/${role.toLowerCase()}.png`;
-    roleModal.style.display="flex";
+// Role modal
+function openModal(name, role){
+    modalName.textContent = name;
+    modalRole.src = `images/${role.toLowerCase()}.png`;
+    roleModal.style.display = "flex";
 }
 function closeModal(){ roleModal.style.display="none"; }
 
-// ---------- Host Buttons ----------
+// Deal roles (host only)
 dealBtn.onclick=async ()=>{
     if(!isHost) return;
     const rolesArray=["mafia","mafia","godfather","doctor","detective","civilian","civilian","civilian","civilian"];
@@ -165,7 +173,7 @@ dealBtn.onclick=async ()=>{
     alert("Roles dealt!");
 };
 
-// ---------- Reset & Exit ----------
+// Reset (host only)
 resetBtn.onclick = async () => {
     if(!isHost) return;
     await remove(ref(db,"game/host"));
@@ -174,6 +182,7 @@ resetBtn.onclick = async () => {
     location.reload();
 };
 
+// Exit button
 exitBtn.onclick = async ()=>{
     localStorage.clear();
     if(isHost){
