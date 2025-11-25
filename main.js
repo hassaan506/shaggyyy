@@ -33,6 +33,7 @@ const shuffleBtn = document.getElementById("shuffleBtn");
 const resetBtn = document.getElementById("resetBtn");
 const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
+const endVoteBtn = document.getElementById("endVoteBtn"); // NEW
 
 const roleModal = document.getElementById("roleModal");
 const modalName = document.getElementById("modalName");
@@ -145,6 +146,12 @@ onValue(ref(db, "room"), (snap) => {
     }
 
     hostControls.classList.toggle("hidden", !isHost);
+
+    // NEW: Control visibility of the 'End Vote' button for the host
+    const phase = data.gamePhase;
+    if (isHost) {
+        endVoteBtn.classList.toggle("hidden", phase !== "day");
+    }
 
     // Clear panels
     actionTargets.innerHTML = "";
@@ -276,7 +283,7 @@ submitVoteBtn.onclick = async () => {
     const vote = submitVoteBtn.dataset.vote;
     if (!vote) return alert("Select a player to vote!");
     await set(ref(db, `room/votes/${myId}`), vote);
-    appendLog(`You voted for ${vote}.`);
+    // Removed public log message for secrecy
     submitVoteBtn.disabled = true;
     Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
 };
@@ -293,32 +300,76 @@ dayBtn.onclick = async () => {
     if (localStorage.getItem("isHost") !== "true") return;
     const night = (await get(ref(db, "room/night"))).val() || {};
 
-    // Resolve night kill
+    // Resolve night kill silently
     if (night.mafiaTarget && night.mafiaTarget !== night.doctorSave) {
         await set(ref(db, `room/players/${night.mafiaTarget}/alive`), false);
-        appendLog(`${night.mafiaTarget} was eliminated last night.`);
     }
 
     // Clear night data
     await remove(ref(db, "room/night"));
 
-    // Resolve day votes
-    const votesSnap = await get(ref(db, "room/votes"));
-    if (votesSnap.exists()) {
-        const votes = Object.values(votesSnap.val());
-        const voteCount = {};
-        votes.forEach(v => voteCount[v] = (voteCount[v] || 0) + 1);
-        const maxVotes = Math.max(...Object.values(voteCount));
-        const eliminated = Object.keys(voteCount).find(k => voteCount[k] === maxVotes);
-        if (eliminated) {
-            await set(ref(db, `room/players/${eliminated}/alive`), false);
-            appendLog(`${eliminated} was eliminated by vote.`);
-        }
-        await remove(ref(db, "room/votes"));
-    }
+    // Clear any previous votes before starting the new day phase
+    await remove(ref(db, "room/votes"));
 
+    // Set the game phase to "day"
     set(ref(db, "room/gamePhase"), "day");
 };
+
+// --------------------------------------------------
+// HOST: END VOTE & ELIMINATE (NEW FUNCTION)
+// --------------------------------------------------
+endVoteBtn.onclick = async () => {
+    if (localStorage.getItem("isHost") !== "true") return;
+
+    const votesSnap = await get(ref(db, "room/votes"));
+    if (!votesSnap.exists()) {
+        return alert("No votes have been cast yet.");
+    }
+
+    const votes = Object.values(votesSnap.val());
+    const voteCount = {};
+
+    // Tally the votes
+    votes.forEach(v => {
+        voteCount[v] = (voteCount[v] || 0) + 1;
+    });
+
+    // Find the player with the most votes
+    let maxVotes = 0;
+    let eliminatedId = null;
+    for (const playerId in voteCount) {
+        if (voteCount[playerId] > maxVotes) {
+            maxVotes = voteCount[playerId];
+            eliminatedId = playerId;
+        }
+    }
+
+    if (eliminatedId) {
+        // Get the eliminated player's name to show the host
+        const eliminatedSnap = await get(ref(db, `room/players/${eliminatedId}`));
+        const eliminatedName = eliminatedSnap.val().name;
+
+        // Show results ONLY to the host
+        let resultsMessage = `Voting Results:\n\n`;
+        for (const playerId in voteCount) {
+            const nameSnap = await get(ref(db, `room/players/${playerId}`));
+            const name = nameSnap.val().name;
+            resultsMessage += `- ${name}: ${voteCount[playerId]} votes\n`;
+        }
+        resultsMessage += `\n${eliminatedName} has been eliminated.`;
+        alert(resultsMessage);
+
+        // Secretly eliminate the player in the database
+        await set(ref(db, `room/players/${eliminatedId}/alive`), false);
+
+    } else {
+        alert("Votes were cast, but no one received a majority to be eliminated.");
+    }
+
+    // Clear the votes after the round is over
+    await remove(ref(db, "room/votes"));
+};
+
 
 // --------------------------------------------------
 // PHASE UI
