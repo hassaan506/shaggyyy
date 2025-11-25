@@ -104,7 +104,7 @@ joinPlayerBtn.onclick = async () => {
 };
 
 // ---------------------------------------------
-// RENDER GAME STATE
+// RENDER GAME STATE (FIXED VERSION)
 // ---------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -113,7 +113,7 @@ onValue(ref(db, "room"), (snap) => {
     const isHost = localStorage.getItem("isHost") === "true";
     const myId = localStorage.getItem("playerId");
 
-    // Handle host
+    // Update host display
     if (data.host) {
         hostStatus.innerText = "Host: " + data.host.name;
     }
@@ -122,29 +122,43 @@ onValue(ref(db, "room"), (snap) => {
 
     playersList.innerHTML = "";
 
-    if (data.players) {
-        Object.entries(data.players).forEach(([pid, player]) => {
-            const div = document.createElement("div");
-            div.classList.add("playerCard");
+    if (!data.players) return;
 
-            div.innerHTML = `
-                <h3>${player.name}</h3>
-                <img src="images/back.png">
-                <p>${player.alive ? "Alive" : "Dead"}</p>
-            `;
+    Object.entries(data.players).forEach(([pid, player]) => {
+        const div = document.createElement("div");
+        div.classList.add("playerCard");
 
-            div.onclick = () => {
-                if (pid === myId) {
-                    modalName.innerText = player.name;
-                    modalRole.src = player.role ? "images/" + player.role + ".png" : "images/back.png";
-                    roleModal.style.display = "flex";
-                }
-            };
+        let cardImage = "images/back.png";
 
-            playersList.appendChild(div);
-        });
-    }
+        // Host sees all cards
+        if (isHost && player.role) {
+            cardImage = `images/${player.role}.png`;
+        }
+
+        // Player sees only their own card
+        if (!isHost && pid === myId && player.role) {
+            cardImage = `images/${player.role}.png`;
+        }
+
+        div.innerHTML = `
+            <h3>${player.name}</h3>
+            <img src="${cardImage}">
+            <p>${player.alive ? "Alive" : "Dead"}</p>
+        `;
+
+        // Player can click to see modal
+        div.onclick = () => {
+            if (pid === myId || isHost) {
+                modalName.innerText = player.name;
+                modalRole.src = player.role ? `images/${player.role}.png` : "images/back.png";
+                roleModal.style.display = "flex";
+            }
+        };
+
+        playersList.appendChild(div);
+    });
 });
+
 
 // ---------------------------------------------
 // HOST ACTIONS
@@ -198,3 +212,4 @@ dayBtn.onclick = () => {
 window.closeModal = function () {
     roleModal.style.display = "none";
 };
+
