@@ -43,7 +43,7 @@ const modalName = document.getElementById("modalName");
 const modalRole = document.getElementById("modalRole");
 
 // ---------------------------------------------
-// PAGE LOAD: auto-restore session
+// AUTO RESTORE SESSION
 // ---------------------------------------------
 window.onload = () => {
     const savedName = localStorage.getItem("name");
@@ -113,23 +113,30 @@ onValue(ref(db, "room"), (snap) => {
 
     hostControls.classList.toggle("hidden", !isHost);
 
-    // Render players grid
+    // Players grid
     playersList.innerHTML = "";
     if (data.players) {
         Object.entries(data.players).forEach(([pid, player]) => {
+
+            // Decide if this client is allowed to see the real card
+            const canSeeCard = isHost || pid === myId;
+            const cardImage = canSeeCard && player.role 
+                ? player.role 
+                : "back";
+
             const div = document.createElement("div");
             div.classList.add("playerCard");
 
             div.innerHTML = `
                 <h3>${player.name}</h3>
-                <img src="images/${player.role ? player.role : 'back'}.png">
+                <img src="images/${cardImage}.png">
                 <p>${player.alive ? "Alive" : "Dead"}</p>
             `;
 
             div.onclick = () => {
-                if (isHost || pid === myId) {
+                if (canSeeCard) {
                     modalName.innerText = player.name;
-                    modalRole.src = "images/" + (player.role ? player.role : "back") + ".png";
+                    modalRole.src = `images/${player.role ? player.role : "back"}.png`;
                     roleModal.style.display = "flex";
                 }
             };
@@ -138,7 +145,6 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
 
-    // Sync day/night phase
     if (data.gamePhase) setPhaseUI(data.gamePhase);
 });
 
@@ -150,6 +156,7 @@ dealBtn.onclick = async () => {
     if (!snap.exists()) return alert("No players.");
 
     const players = Object.entries(snap.val());
+
     const roles = [
         "mafia","mafia",
         "godfather",
@@ -157,11 +164,12 @@ dealBtn.onclick = async () => {
         "detective",
         "civilian","civilian","civilian","civilian"
     ];
+
     roles.sort(() => Math.random() - 0.5);
 
     for (let i = 0; i < players.length; i++) {
         const [pid] = players[i];
-        await set(ref(db, `room/players/${pid}/role`), roles[i]);
+        await set(ref(db, `room/players/${pid}/role`), roles[i] ?? "civilian");
     }
 };
 
@@ -184,38 +192,30 @@ function setPhaseUI(phase) {
     if (phase === "night") {
         body.classList.add("night");
         body.classList.remove("day");
-        body.style.backgroundColor = "#000000";
-        body.style.color = "#ffffff";
     } else {
         body.classList.add("day");
         body.classList.remove("night");
-        body.style.backgroundColor = "#ffffff";
-        body.style.color = "#000000";
     }
 }
 
-// Only host updates Firebase
 nightBtn.onclick = async () => {
     const isHost = localStorage.getItem("isHost") === "true";
     if (!isHost) return alert("Only host can change phase.");
-    setPhaseUI("night");
     await set(ref(db, "room/gamePhase"), "night");
 };
 
 dayBtn.onclick = async () => {
     const isHost = localStorage.getItem("isHost") === "true";
     if (!isHost) return alert("Only host can change phase.");
-    setPhaseUI("day");
     await set(ref(db, "room/gamePhase"), "day");
 };
 
-// Sync UI for all clients
 onValue(ref(db, "room/gamePhase"), (snap) => {
     if (snap.exists()) setPhaseUI(snap.val());
 });
 
 // ---------------------------------------------
-// CLOSE MODAL
+// MODAL
 // ---------------------------------------------
 window.closeModal = function () {
     roleModal.style.display = "none";
