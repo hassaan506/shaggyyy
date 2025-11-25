@@ -56,15 +56,26 @@ let allPlayersCache = {};
 // --------------------------------------------------
 
 shuffleBtn.addEventListener('click', () => {
+    // We select the element dynamically to ensure we get it
     const deckImg = document.querySelector(".cardDeck");
-    deckImg.classList.add("shaking");
-    deckStatus.innerText = "Shuffling...";
-    setTimeout(() => {
+    
+    if (deckImg) {
+        // Force reset of animation
         deckImg.classList.remove("shaking");
-        deckStatus.innerText = "Deck Ready!";
-        dealBtn.disabled = false;
-        dealBtn.style.opacity = "1";
-    }, 1500);
+        void deckImg.offsetWidth; // Trigger reflow
+        deckImg.classList.add("shaking");
+        
+        deckStatus.innerText = "Shuffling...";
+        
+        setTimeout(() => {
+            deckImg.classList.remove("shaking");
+            deckStatus.innerText = "Deck Ready!";
+            dealBtn.disabled = false;
+            dealBtn.style.opacity = "1";
+        }, 1500);
+    } else {
+        alert("Error: Deck element not found.");
+    }
 });
 
 dealBtn.addEventListener('click', async () => {
@@ -84,8 +95,9 @@ dealBtn.addEventListener('click', async () => {
         });
     });
 
-    set(ref(db, "room/gamePhase"), "Roles Assigned");
-    set(ref(db, "room/deckDealt"), true);
+    // This flag is CRITICAL. It tells all screens to show the cards.
+    await set(ref(db, "room/deckDealt"), true);
+    await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
 
 resetBtn.addEventListener('click', async () => {
@@ -128,7 +140,6 @@ dayBtn.addEventListener('click', async () => {
     await remove(ref(db, "room/votes"));
     await set(ref(db, "room/gamePhase"), "day");
 
-    // Host sees the truth, but players see nothing
     alert(`📢 HOST REPORT (Private):\n\nTarget: ${mafiaTargetName}\nSave: ${doctorSaveName}\nResult: ${statusMessage}`);
     checkWinCondition();
 });
@@ -216,6 +227,7 @@ joinHostBtn.addEventListener('click', async () => {
     if (snap.exists()) await remove(ref(db, "room"));
 
     await set(ref(db, "room/host"), { name });
+    await set(ref(db, "room/deckDealt"), false); // Reset deck state
     localStorage.setItem("playerId", "HOST");
     localStorage.setItem("name", name);
     localStorage.setItem("isHost", "true");
@@ -268,9 +280,13 @@ onValue(ref(db, "room"), (snap) => {
     
     // Controls Visibility
     hostControls.classList.toggle("hidden", !isHost);
+    
+    // Check if deck has been dealt
+    const isDealt = data.deckDealt === true;
+
     if (isHost) {
         endVoteBtn.classList.toggle("hidden", data.gamePhase !== "day");
-        if (data.deckDealt) {
+        if (isDealt) {
             shuffleBtn.disabled = true;
             dealBtn.disabled = true;
             centralDeck.classList.add("hidden");
@@ -278,24 +294,24 @@ onValue(ref(db, "room"), (snap) => {
             centralDeck.classList.remove("hidden");
         }
     } else {
-        if (data.deckDealt) centralDeck.classList.add("hidden");
+        if (isDealt) centralDeck.classList.add("hidden");
         else centralDeck.classList.remove("hidden");
     }
 
     const phase = data.gamePhase || "Waiting";
     
-    // STATUS BANNER LOGIC FOR VICTIM
+    // STATUS BANNER
     const amIPlayer = data.players && data.players[myId];
     const amIDead = amIPlayer && !amIPlayer.alive;
 
     if (amIDead) {
         document.getElementById("phaseText").innerText = "YOU ARE DEAD 💀";
-        document.body.className = "night"; // Keep dark theme for dead
-        document.getElementById("phaseBanner").style.background = "#d32f2f"; // Red banner
+        document.body.className = "night"; 
+        document.getElementById("phaseBanner").style.background = "#d32f2f"; 
     } else {
         document.getElementById("phaseText").innerText = phase;
         document.body.className = phase === "night" ? "night" : "day";
-        document.getElementById("phaseBanner").style.background = "#2f2f2f"; // Reset banner
+        document.getElementById("phaseBanner").style.background = "#2f2f2f"; 
     }
 
     // RENDER PLAYERS
@@ -308,31 +324,38 @@ onValue(ref(db, "room"), (snap) => {
             const isMe = pid === myId;
             const canSeeRole = isHost || isMe; 
 
-            // --- HIDDEN DEATH LOGIC ---
-            // If I am Host OR I am the specific player -> I see the true 'Alive/Dead' status.
-            // Everyone else -> Sees "Alive" (even if the player is actually dead)
-            const showRealStatus = isHost || isMe;
-            const displayAlive = showRealStatus ? p.alive : true; 
-            
-            // CARD DISPLAY
+            // --- VISIBILITY LOGIC ---
+            // If deck is NOT dealt yet, EVERYONE sees Empty Slot.
+            // Even if role data exists in DB, we hide it until isDealt is true.
             let cardContent = "";
-            if (!p.role) {
+
+            if (!isDealt) {
                 cardContent = `<div class="emptySlot">Empty Slot</div>`;
             } else {
-                const imgName = (canSeeRole) ? p.role : "back";
-                cardContent = `<img src="images/${imgName}.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
+                // Deck IS dealt. Now we check roles.
+                if (canSeeRole) {
+                    // I can see the role (Host or Me)
+                     cardContent = `<img src="images/${p.role}.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
+                } else {
+                    // I cannot see the role (Other players) -> Show Back
+                    cardContent = `<img src="images/back.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
+                }
             }
+
+            // Hidden Death Logic
+            const showRealStatus = isHost || isMe;
+            const displayAlive = showRealStatus ? p.alive : true; 
 
             const div = document.createElement("div");
             div.classList.add("playerCard");
             
-            // Only dim the card if we are allowed to see they are dead
             if (!displayAlive) div.style.opacity = "0.5";
             
             div.innerHTML = `<h3>${p.name}</h3>${cardContent}<p>${displayAlive ? "Alive" : "DEAD"}</p>`;
 
             div.addEventListener('click', () => {
-                if (canSeeRole && p.alive && p.role) {
+                // Click to reveal big card (Only if dealt and allowed)
+                if (isDealt && canSeeRole && p.alive && p.role) {
                     modalName.innerText = p.name;
                     modalRole.src = `images/${p.role}.png`;
                     modalRoleText.innerText = `Role: ${p.role}`;
@@ -341,13 +364,10 @@ onValue(ref(db, "room"), (snap) => {
             });
             playersList.appendChild(div);
 
-            // BUTTON LOGIC
-            // If I am dead, I cannot do actions (even if others think I am alive)
+            // BUTTONS
             if (amIPlayer && amIPlayer.alive) {
-                // If I am alive, I can only interact with people I THINK are alive (displayAlive)
-                // Note: In this mode, since others always look "Alive", you can try to target them.
                 if (displayAlive) { 
-                    if (phase === "night" && p.alive) { // Night logic usually strictly follows reality
+                    if (phase === "night" && p.alive) {
                         const myRole = amIPlayer.role;
                         if (!isMe || myRole === "doctor") {
                             if (["mafia", "godfather", "doctor", "detective"].includes(myRole)) {
