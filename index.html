@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Mafia Wars Online</title>
-    <link rel="stylesheet" href="style.css?v=2.0">
+    <title>Mafia Wars</title>
+    <link rel="stylesheet" href="style.css?v=3.0">
 </head>
 <body class="day">
 
-<!-- JOIN SCREEN -->
 <div id="screenJoin" class="screen">
     <div class="joinCard">
         <h1>Mafia Wars Online</h1>
@@ -20,10 +19,8 @@
     </div>
 </div>
 
-<!-- GAME SCREEN -->
 <div id="screenGame" class="screen hidden">
 
-    <!-- Top bar: host info & controls -->
     <div class="topBar">
         <div class="hostSection">
             <h2 id="hostStatus">Waiting for host...</h2>
@@ -33,44 +30,47 @@
         </div>
 
         <div id="hostControls" class="hidden">
-            <button id="dealBtn">Deal Roles</button>
-            <button id="shuffleBtn">Shuffle</button>
-            <button id="resetBtn">Reset Game</button>
-            <button id="nightBtn">Start Night</button>
-            <button id="dayBtn">Resolve Night / Start Day</button>
-            <button id="endVoteBtn" class="hidden">End Voting & Eliminate</button>
-            <button id="cleanBtn" title="Remove inactive players (idle > 120s)">Remove Inactive</button>
+            <button id="shuffleBtn">🔀 Shuffle Deck</button>
+            <button id="dealBtn" disabled>🃏 Deal Roles</button>
+            <button id="resetBtn">🔄 Reset Game</button>
+            <button id="nightBtn">🌙 Start Night</button>
+            <button id="dayBtn">☀️ Start Day</button>
+            <button id="endVoteBtn" class="hidden">⚖️ End Vote</button>
+            <button id="cleanBtn">🧹 Clear Players</button>
         </div>
     </div>
 
-    <!-- Game state display -->
+    <div id="tableArea" class="tableArea">
+        <div id="centralDeck" class="deckWrapper">
+            <div class="cardDeck">
+                <img src="images/back.png" class="deckImg">
+                <img src="images/back.png" class="deckImg layer1">
+                <img src="images/back.png" class="deckImg layer2">
+            </div>
+            <p id="deckStatus">Waiting to Deal...</p>
+        </div>
+    </div>
+
     <div class="gameContainer">
-        <!-- Players seats -->
         <div id="playersList" class="players"></div>
 
-        <!-- Right panel: actions & voting -->
         <div class="rightPanel">
             <div id="phaseBanner" class="phaseBanner">Phase: <span id="phaseText">Day</span></div>
 
-            <!-- Action panel (role-specific during night) -->
             <div id="actionPanel" class="panel hidden">
                 <h3>Night Action</h3>
                 <p id="actionInstruction">No action required</p>
                 <div id="actionTargets" class="targets"></div>
                 <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
-                <p id="actionStatus" class="muted"></p>
             </div>
 
-            <!-- Voting panel (during day) -->
             <div id="votingPanel" class="panel hidden">
                 <h3>Day Vote</h3>
                 <p id="voteInstruction">Select a player to vote</p>
                 <div id="voteTargets" class="targets"></div>
                 <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
-                <p id="voteStatus" class="muted"></p>
             </div>
 
-            <!-- Game log -->
             <div class="panel">
                 <h4>Game Log</h4>
                 <ul id="gameLog" class="log"></ul>
@@ -81,7 +81,6 @@
     <button id="exitBtn" class="exitBtn">Exit Game</button>
 </div>
 
-<!-- ROLE MODAL -->
 <div id="roleModal">
     <div class="modalContent">
         <h2 id="modalName">Player Name</h2>
@@ -91,6 +90,6 @@
     </div>
 </div>
 
-<script type="module" src="main.js?v=2.0"></script>
+<script type="module" src="main.js?v=3.0"></script>
 </body>
 </html>
