@@ -62,9 +62,7 @@ joinHostBtn.onclick = async () => {
     const name = playerNameInput.value.trim();
     if (!name) return alert("Enter host name.");
 
-    const roomRef = ref(db, "room");
-
-    const snap = await get(child(roomRef, "host"));
+    const snap = await get(ref(db, "room/host"));
     if (snap.exists()) return alert("Host already exists.");
 
     await set(ref(db, "room/host"), { name });
@@ -87,11 +85,7 @@ joinPlayerBtn.onclick = async () => {
     const playersRef = ref(db, "room/players");
     const newPlayer = push(playersRef);
 
-    await set(newPlayer, {
-        name,
-        role: null,
-        alive: true
-    });
+    await set(newPlayer, { name, role: null, alive: true });
 
     localStorage.setItem("playerId", newPlayer.key);
     localStorage.setItem("name", name);
@@ -114,12 +108,12 @@ onValue(ref(db, "room"), (snap) => {
     // Host info
     if (data.host) {
         hostStatus.innerText = "Host: " + data.host.name;
-        hostName.innerText = "Host: " + data.host.name;
+        hostName.innerText = data.host.name;
     }
 
     hostControls.classList.toggle("hidden", !isHost);
 
-    // Render players
+    // Render players grid
     playersList.innerHTML = "";
     if (data.players) {
         Object.entries(data.players).forEach(([pid, player]) => {
@@ -133,7 +127,6 @@ onValue(ref(db, "room"), (snap) => {
             `;
 
             div.onclick = () => {
-                const myId = localStorage.getItem("playerId");
                 if (isHost || pid === myId) {
                     modalName.innerText = player.name;
                     modalRole.src = "images/" + (player.role ? player.role : "back") + ".png";
@@ -146,7 +139,7 @@ onValue(ref(db, "room"), (snap) => {
     }
 
     // Sync day/night phase
-    if (data.gamePhase) setPhase(data.gamePhase);
+    if (data.gamePhase) setPhaseUI(data.gamePhase);
 });
 
 // ---------------------------------------------
@@ -186,26 +179,40 @@ resetBtn.onclick = async () => {
 // ---------------------------------------------
 // DAY/NIGHT SYSTEM
 // ---------------------------------------------
-function setPhase(phase) {
+function setPhaseUI(phase) {
     const body = document.body;
-
     if (phase === "night") {
         body.classList.add("night");
         body.classList.remove("day");
         body.style.backgroundColor = "#000000";
         body.style.color = "#ffffff";
-        await set(ref(db, "room/gamePhase"), "night");
     } else {
         body.classList.add("day");
         body.classList.remove("night");
         body.style.backgroundColor = "#ffffff";
         body.style.color = "#000000";
-        await set(ref(db, "room/gamePhase"), "day");
     }
 }
 
-nightBtn.onclick = () => setPhase("night");
-dayBtn.onclick = () => setPhase("day");
+// Only host updates Firebase
+nightBtn.onclick = async () => {
+    const isHost = localStorage.getItem("isHost") === "true";
+    if (!isHost) return alert("Only host can change phase.");
+    setPhaseUI("night");
+    await set(ref(db, "room/gamePhase"), "night");
+};
+
+dayBtn.onclick = async () => {
+    const isHost = localStorage.getItem("isHost") === "true";
+    if (!isHost) return alert("Only host can change phase.");
+    setPhaseUI("day");
+    await set(ref(db, "room/gamePhase"), "day");
+};
+
+// Sync UI for all clients
+onValue(ref(db, "room/gamePhase"), (snap) => {
+    if (snap.exists()) setPhaseUI(snap.val());
+});
 
 // ---------------------------------------------
 // CLOSE MODAL
