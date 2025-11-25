@@ -33,9 +33,23 @@ const shuffleBtn = document.getElementById("shuffleBtn");
 const resetBtn = document.getElementById("resetBtn");
 const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
+
 const roleModal = document.getElementById("roleModal");
 const modalName = document.getElementById("modalName");
 const modalRole = document.getElementById("modalRole");
+const modalRoleText = document.getElementById("modalRoleText");
+
+const actionPanel = document.getElementById("actionPanel");
+const actionInstruction = document.getElementById("actionInstruction");
+const actionTargets = document.getElementById("actionTargets");
+const submitActionBtn = document.getElementById("submitActionBtn");
+
+const votingPanel = document.getElementById("votingPanel");
+const voteInstruction = document.getElementById("voteInstruction");
+const voteTargets = document.getElementById("voteTargets");
+const submitVoteBtn = document.getElementById("submitVoteBtn");
+
+const gameLog = document.getElementById("gameLog");
 
 // --------------------------------------------------
 // AUTO RESTORE SESSION
@@ -85,6 +99,37 @@ joinPlayerBtn.onclick = async () => {
 };
 
 // --------------------------------------------------
+// DEAL ROLES
+// --------------------------------------------------
+dealBtn.onclick = async () => {
+    const snap = await get(ref(db, "room/players"));
+    if (!snap.exists()) return alert("No players.");
+
+    const players = Object.entries(snap.val());
+    let roles = ["mafia", "mafia", "godfather", "doctor", "detective"];
+
+    // Fill remaining players with civilians
+    while (roles.length < players.length) roles.push("civilian");
+
+    roles = roles.sort(() => Math.random() - 0.5);
+
+    players.forEach(([pid], i) => {
+        set(ref(db, `room/players/${pid}/role`), roles[i] ?? "civilian");
+    });
+
+    alert("Roles assigned!");
+};
+
+// --------------------------------------------------
+// RESET GAME
+// --------------------------------------------------
+resetBtn.onclick = async () => {
+    await remove(ref(db, "room"));
+    localStorage.clear();
+    location.reload();
+};
+
+// --------------------------------------------------
 // RENDER GAME STATE
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
@@ -99,55 +144,37 @@ onValue(ref(db, "room"), (snap) => {
         hostName.innerText = data.host.name;
     }
 
-    // HOST CONTROLS visible ONLY for host
     hostControls.classList.toggle("hidden", !isHost);
+
+    // Clear panels
+    actionTargets.innerHTML = "";
+    voteTargets.innerHTML = "";
+    actionPanel.classList.add("hidden");
+    votingPanel.classList.add("hidden");
 
     // Render players
     playersList.innerHTML = "";
-
     if (data.players) {
         Object.entries(data.players).forEach(([pid, p]) => {
-
             const canSeeCard = isHost || pid === myId;
             const img = canSeeCard && p.role ? p.role : "back";
 
             const div = document.createElement("div");
             div.classList.add("playerCard");
-
             div.innerHTML = `
                 <h3>${p.name}</h3>
                 <img src="images/${img}.png">
                 <p>${p.alive ? "Alive" : "Dead"}</p>
             `;
 
-            // --- Night Actions ---
             div.onclick = () => {
-                if (!data.gamePhase) return;
+                if (!p.alive) return;
 
-                // -----------------------------------
-                // Mafia selecting a kill target
-                // -----------------------------------
-                if (data.gamePhase === "night" && p.alive) {
-
-                    // Mafia can kill NON-mafia players
-                    if (data.players[myId]?.role === "mafia") {
-                        if (p.role !== "mafia") {
-                            set(ref(db, "room/night/mafiaTarget"), pid);
-                            alert("You selected " + p.name + " for elimination.");
-                        }
-                    }
-
-                    // Doctor save ability
-                    if (data.players[myId]?.role === "doctor") {
-                        set(ref(db, "room/night/doctorSave"), pid);
-                        alert("You selected " + p.name + " to save tonight.");
-                    }
-                }
-
-                // Show card modal for host or yourself
+                // Show role modal for host or self
                 if (canSeeCard) {
                     modalName.innerText = p.name;
                     modalRole.src = `images/${p.role ? p.role : "back"}.png`;
+                    modalRoleText.innerText = p.role ?? "";
                     roleModal.style.display = "flex";
                 }
             };
@@ -156,47 +183,107 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
 
-    if (data.gamePhase) setPhaseUI(data.gamePhase);
+    // Render night actions if alive
+    if (data.gamePhase === "night" && data.players[myId]?.alive) {
+        const role = data.players[myId].role;
+        if (["mafia", "godfather", "doctor", "detective"].includes(role)) {
+            actionPanel.classList.remove("hidden");
+
+            let instruction = "";
+            if (role === "mafia" || role === "godfather") instruction = "Select a player to eliminate";
+            else if (role === "doctor") instruction = "Select a player to save";
+            else if (role === "detective") instruction = "Select a player to investigate";
+
+            actionInstruction.innerText = instruction;
+
+            Object.entries(data.players).forEach(([pid, p]) => {
+                if (!p.alive || pid === myId) return;
+                const btn = document.createElement("button");
+                btn.classList.add("targetBtn");
+                btn.innerText = p.name;
+                btn.onclick = () => {
+                    // Highlight selected
+                    Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
+                    btn.classList.add("selected");
+                    submitActionBtn.disabled = false;
+                    submitActionBtn.dataset.target = pid;
+                };
+                actionTargets.appendChild(btn);
+            });
+        }
+    }
+
+    // Render voting during day
+    if (data.gamePhase === "day") {
+        votingPanel.classList.remove("hidden");
+        Object.entries(data.players).forEach(([pid, p]) => {
+            if (!p.alive || pid === myId) return;
+            const btn = document.createElement("button");
+            btn.classList.add("targetBtn");
+            btn.innerText = p.name;
+            btn.onclick = () => {
+                Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
+                btn.classList.add("selected");
+                submitVoteBtn.disabled = false;
+                submitVoteBtn.dataset.vote = pid;
+            };
+            voteTargets.appendChild(btn);
+        });
+    }
+
+    // Update phase text
+    const phaseText = document.getElementById("phaseText");
+    phaseText.innerText = data.gamePhase ?? "Waiting";
 });
 
 // --------------------------------------------------
-// DEAL ROLES
+// NIGHT ACTION SUBMIT
 // --------------------------------------------------
-dealBtn.onclick = async () => {
-    const snap = await get(ref(db, "room/players"));
-    if (!snap.exists()) return alert("No players.");
+submitActionBtn.onclick = async () => {
+    const myId = localStorage.getItem("playerId");
+    const role = (await get(ref(db, `room/players/${myId}/role`))).val();
+    const target = submitActionBtn.dataset.target;
+    if (!target) return alert("Select a target!");
 
-    const players = Object.entries(snap.val());
-    const roles = ["mafia", "mafia", "godfather", "doctor", "detective",
-                   "civilian", "civilian", "civilian", "civilian"];
+    if (role === "mafia" || role === "godfather") {
+        await set(ref(db, "room/night/mafiaTarget", target));
+        appendLog(`Mafia selected a target.`);
+    }
+    else if (role === "doctor") {
+        await set(ref(db, "room/night/doctorSave", target));
+        appendLog(`Doctor will try to save ${target}.`);
+    }
+    else if (role === "detective") {
+        const targetRoleSnap = await get(ref(db, `room/players/${target}/role`));
+        const targetRole = targetRoleSnap.val();
+        const result = (targetRole === "mafia") ? "YES" : "NO";
+        await set(ref(db, `room/night/detectiveResult/${myId}`, {
+            target,
+            result
+        }));
+        alert(`Investigation result for ${target}: ${result}`);
+    }
 
-    roles.sort(() => Math.random() - 0.5);
-
-    players.forEach(([pid], i) => {
-        set(ref(db, `room/players/${pid}/role`), roles[i] ?? "civilian");
-    });
-
-    alert("Roles have been assigned!");
+    submitActionBtn.disabled = true;
+    Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
 };
 
 // --------------------------------------------------
-// RESET GAME
+// DAY VOTING SUBMIT
 // --------------------------------------------------
-resetBtn.onclick = async () => {
-    await remove(ref(db, "room"));
-    localStorage.clear();
-    location.reload();
+submitVoteBtn.onclick = async () => {
+    const myId = localStorage.getItem("playerId");
+    const vote = submitVoteBtn.dataset.vote;
+    if (!vote) return alert("Select a player to vote!");
+    await set(ref(db, `room/votes/${myId}`), vote);
+    appendLog(`You voted for ${vote}.`);
+    submitVoteBtn.disabled = true;
+    Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
 };
 
 // --------------------------------------------------
-// DAY / NIGHT
+// HOST: NIGHT / DAY PHASE
 // --------------------------------------------------
-function setPhaseUI(phase) {
-    document.body.classList.toggle("night", phase === "night");
-    document.body.classList.toggle("day", phase === "day");
-}
-
-// Host sets phase
 nightBtn.onclick = () => {
     if (localStorage.getItem("isHost") !== "true") return;
     set(ref(db, "room/gamePhase"), "night");
@@ -204,23 +291,51 @@ nightBtn.onclick = () => {
 
 dayBtn.onclick = async () => {
     if (localStorage.getItem("isHost") !== "true") return;
-
     const night = (await get(ref(db, "room/night"))).val() || {};
 
-    // Resolve night death BEFORE day discussion
+    // Resolve night kill
     if (night.mafiaTarget && night.mafiaTarget !== night.doctorSave) {
         await set(ref(db, `room/players/${night.mafiaTarget}/alive`), false);
+        appendLog(`${night.mafiaTarget} was eliminated last night.`);
     }
 
     // Clear night data
     await remove(ref(db, "room/night"));
 
+    // Resolve day votes
+    const votesSnap = await get(ref(db, "room/votes"));
+    if (votesSnap.exists()) {
+        const votes = Object.values(votesSnap.val());
+        const voteCount = {};
+        votes.forEach(v => voteCount[v] = (voteCount[v] || 0) + 1);
+        const maxVotes = Math.max(...Object.values(voteCount));
+        const eliminated = Object.keys(voteCount).find(k => voteCount[k] === maxVotes);
+        if (eliminated) {
+            await set(ref(db, `room/players/${eliminated}/alive`), false);
+            appendLog(`${eliminated} was eliminated by vote.`);
+        }
+        await remove(ref(db, "room/votes"));
+    }
+
     set(ref(db, "room/gamePhase"), "day");
 };
 
-// Sync phase to all clients
+// --------------------------------------------------
+// PHASE UI
+// --------------------------------------------------
+function appendLog(msg) {
+    const li = document.createElement("li");
+    li.innerText = msg;
+    gameLog.appendChild(li);
+    gameLog.scrollTop = gameLog.scrollHeight;
+}
+
 onValue(ref(db, "room/gamePhase"), (snap) => {
-    if (snap.exists()) setPhaseUI(snap.val());
+    if (!snap.exists()) return;
+    const phase = snap.val();
+    document.body.classList.toggle("night", phase === "night");
+    document.body.classList.toggle("day", phase === "day");
+    document.getElementById("phaseText").innerText = phase;
 });
 
 // --------------------------------------------------
