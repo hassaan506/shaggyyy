@@ -35,6 +35,8 @@ const exitBtn = document.getElementById("exitBtn");
 // Deck Elements
 const centralDeck = document.getElementById("centralDeck");
 const deckStatus = document.getElementById("deckStatus");
+// We grab the specific image for animation
+const deckImageElement = document.querySelector(".cardDeck"); 
 
 // Modal & Panels
 const roleModal = document.getElementById("roleModal");
@@ -52,35 +54,53 @@ const gameLog = document.getElementById("gameLog");
 let allPlayersCache = {}; 
 
 // --------------------------------------------------
-// HOST ACTIONS
+// SHUFFLE FUNCTION (Shared)
 // --------------------------------------------------
-
-shuffleBtn.addEventListener('click', () => {
-    // We select the element dynamically to ensure we get it
-    const deckImg = document.querySelector(".cardDeck");
-    
-    if (deckImg) {
-        // Force reset of animation
-        deckImg.classList.remove("shaking");
-        void deckImg.offsetWidth; // Trigger reflow
-        deckImg.classList.add("shaking");
-        
-        deckStatus.innerText = "Shuffling...";
-        
-        setTimeout(() => {
-            deckImg.classList.remove("shaking");
-            deckStatus.innerText = "Deck Ready!";
-            dealBtn.disabled = false;
-            dealBtn.style.opacity = "1";
-        }, 1500);
-    } else {
-        alert("Error: Deck element not found.");
+function performShuffle() {
+    // 1. Visual Shake
+    if (deckImageElement) {
+        deckImageElement.classList.remove("shaking");
+        void deckImageElement.offsetWidth; // Trigger reflow to restart animation
+        deckImageElement.classList.add("shaking");
     }
+
+    deckStatus.innerText = "Shuffling...";
+
+    // 2. Logic delay
+    setTimeout(() => {
+        if (deckImageElement) deckImageElement.classList.remove("shaking");
+        deckStatus.innerText = "Deck Ready!";
+        
+        // 3. Enable Deal Button
+        dealBtn.disabled = false;
+        dealBtn.style.opacity = "1";
+        dealBtn.style.cursor = "pointer";
+    }, 1500);
+}
+
+// Attach Shuffle to Button
+shuffleBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    performShuffle();
 });
 
+// Attach Shuffle to the Card Image itself (UX improvement)
+if (deckImageElement) {
+    deckImageElement.addEventListener('click', () => {
+        // Only allow shuffle if we are host and deck isn't hidden
+        if (localStorage.getItem("isHost") === "true" && !centralDeck.classList.contains("hidden")) {
+            performShuffle();
+        }
+    });
+}
+
+
+// --------------------------------------------------
+// HOST ACTIONS
+// --------------------------------------------------
 dealBtn.addEventListener('click', async () => {
     const snap = await get(ref(db, "room/players"));
-    if (!snap.exists()) return alert("No players.");
+    if (!snap.exists()) return alert("No players joined yet.");
 
     const players = Object.entries(snap.val());
     let roles = ["mafia", "mafia", "godfather", "doctor", "detective"];
@@ -88,6 +108,7 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < players.length) roles.push("civilian");
     roles = roles.sort(() => Math.random() - 0.5);
 
+    // Assign roles but keep ALIVE true
     players.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { 
             role: roles[i] ?? "civilian",
@@ -95,13 +116,15 @@ dealBtn.addEventListener('click', async () => {
         });
     });
 
-    // This flag is CRITICAL. It tells all screens to show the cards.
+    // CRITICAL: This flag tells the game "Okay, now show the cards"
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
 
 resetBtn.addEventListener('click', async () => {
-    if (confirm("Reset entire game?")) {
+    if (confirm("Reset entire game? This clears everyone.")) {
+        // We explicitly set deckDealt to false to fix the "Host sees cards" bug
+        await set(ref(db, "room/deckDealt"), false);
         await remove(ref(db, "room"));
         localStorage.clear();
         location.reload();
@@ -222,12 +245,17 @@ window.onload = () => {
 joinHostBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
     if (!name) return;
+    
     const snap = await get(ref(db, "room/host"));
-    if (snap.exists() && !confirm("Overwrite host?")) return;
+    if (snap.exists() && !confirm("Overwrite existing host?")) return;
+
+    // Remove old room data to ensure a clean slate
     if (snap.exists()) await remove(ref(db, "room"));
 
     await set(ref(db, "room/host"), { name });
-    await set(ref(db, "room/deckDealt"), false); // Reset deck state
+    // FORCE deckDealt to FALSE so we see empty slots
+    await set(ref(db, "room/deckDealt"), false); 
+    
     localStorage.setItem("playerId", "HOST");
     localStorage.setItem("name", name);
     localStorage.setItem("isHost", "true");
@@ -281,17 +309,22 @@ onValue(ref(db, "room"), (snap) => {
     // Controls Visibility
     hostControls.classList.toggle("hidden", !isHost);
     
-    // Check if deck has been dealt
+    // Check Deal Status
+    // If deckDealt is missing or false, we are in "Waiting to Deal" mode
     const isDealt = data.deckDealt === true;
 
     if (isHost) {
         endVoteBtn.classList.toggle("hidden", data.gamePhase !== "day");
+        // If dealt, hide shuffle/deal buttons and central deck
         if (isDealt) {
             shuffleBtn.disabled = true;
             dealBtn.disabled = true;
             centralDeck.classList.add("hidden");
         } else {
+            // NOT Dealt yet
+            shuffleBtn.disabled = false; // Ensure enabled
             centralDeck.classList.remove("hidden");
+            // dealBtn is handled by the Shuffle animation logic (starts disabled)
         }
     } else {
         if (isDealt) centralDeck.classList.add("hidden");
@@ -325,19 +358,16 @@ onValue(ref(db, "room"), (snap) => {
             const canSeeRole = isHost || isMe; 
 
             // --- VISIBILITY LOGIC ---
-            // If deck is NOT dealt yet, EVERYONE sees Empty Slot.
-            // Even if role data exists in DB, we hide it until isDealt is true.
+            // STRICT RULE: If !isDealt, EVERYONE (Host included) sees Empty Slot.
             let cardContent = "";
 
             if (!isDealt) {
                 cardContent = `<div class="emptySlot">Empty Slot</div>`;
             } else {
-                // Deck IS dealt. Now we check roles.
+                // Deck is Dealt.
                 if (canSeeRole) {
-                    // I can see the role (Host or Me)
-                     cardContent = `<img src="images/${p.role}.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
+                    cardContent = `<img src="images/${p.role}.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
                 } else {
-                    // I cannot see the role (Other players) -> Show Back
                     cardContent = `<img src="images/back.png" onerror="this.src='https://via.placeholder.com/80x115?text=Card'">`;
                 }
             }
@@ -348,13 +378,12 @@ onValue(ref(db, "room"), (snap) => {
 
             const div = document.createElement("div");
             div.classList.add("playerCard");
-            
             if (!displayAlive) div.style.opacity = "0.5";
             
             div.innerHTML = `<h3>${p.name}</h3>${cardContent}<p>${displayAlive ? "Alive" : "DEAD"}</p>`;
 
             div.addEventListener('click', () => {
-                // Click to reveal big card (Only if dealt and allowed)
+                // Click to reveal big card (Only if dealt)
                 if (isDealt && canSeeRole && p.alive && p.role) {
                     modalName.innerText = p.name;
                     modalRole.src = `images/${p.role}.png`;
