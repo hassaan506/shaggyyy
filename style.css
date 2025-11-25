@@ -1,186 +1,64 @@
 /* ---------------------------------------------
     GENERAL STYLES
 --------------------------------------------- */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+body.day { background-color: #ffffff; color: #000000; transition: background-color .3s, color .3s; }
+body.night { background-color: #0b0b12; color: #ffffff; transition: background-color .3s, color .3s; }
 
-body.day {
-    background-color: #ffffff; /* pure white for day */
-    color: #000000;
-    transition: background-color 0.3s, color 0.3s;
-}
+.screen { width: 100%; min-height: 100vh; display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 30px; }
+.hidden { display: none !important; }
 
-body.night {
-    background-color: #000000; /* black for night */
-    color: #ffffff;
-}
+/* JOIN */
+.joinCard { background-color: #f5f5f5; padding: 30px 50px; border-radius: 10px; text-align: center; box-shadow: 0px 0px 15px rgba(0,0,0,0.12); }
+.joinCard input { width: 80%; padding: 10px; margin: 15px 0; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+.joinBtns button { padding: 10px 20px; margin: 5px; border: none; border-radius: 5px; background-color: #4caf50; color: white; font-weight: bold; cursor: pointer; }
+.joinBtns button:hover { background-color: #45a049; }
 
-.screen {
-    width: 100%;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-}
+/* TOPBAR */
+.topBar { width: 100%; max-width: 1200px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 10px; flex-wrap: wrap; }
+#hostControls button { padding: 8px 12px; margin: 2px; cursor: pointer; border-radius: 5px; border: none; background-color: #2196f3; color: white; }
+#hostControls button:hover { background-color: #1976d2; }
+#cleanBtn { background:#ff9800; }
+#cleanBtn:hover { background:#fb8c00; }
 
-.hidden {
-    display: none !important;
-}
+/* LAYOUT */
+.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items:start; }
+.players { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; width: 100%; margin-bottom: 20px; }
+.playerCard { background-color: #f1f1f1; border-radius: 10px; text-align: center; padding: 10px; cursor: pointer; transition: transform 0.15s; box-shadow: 0 6px 14px rgba(0,0,0,0.06); }
+.playerCard:hover { transform: translateY(-4px); }
+.playerCard img { width: 100px; height: 145px; margin: 10px 0; object-fit: cover; border-radius: 6px; }
 
-/* ---------------------------------------------
-    JOIN SCREEN
---------------------------------------------- */
-.joinCard {
-    background-color: #f5f5f5;
-    padding: 30px 50px;
-    border-radius: 10px;
-    text-align: center;
-    box-shadow: 0px 0px 15px rgba(0,0,0,0.2);
-}
+/* RIGHT PANEL */
+.rightPanel { display:flex; flex-direction: column; gap: 12px; }
+.panel { background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; min-height: 80px; }
+.phaseBanner { background: #2f2f2f; color: white; padding: 8px 12px; border-radius: 6px; text-align: center; margin-bottom: 6px; }
+.phaseBanner span { font-weight: bold; }
 
-.joinCard input {
-    width: 80%;
-    padding: 10px;
-    margin: 15px 0;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    font-size: 16px;
-}
+/* action/vote targets */
+.targets { display:flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.targetBtn { padding: 8px 10px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+.targetBtn.selected { background: #4caf50; color: white; border-color: transparent; transform: translateY(-2px); }
+.primary { background: #1976d2; color: white; border: none; padding: 8px 12px; margin-top: 8px; border-radius: 6px; cursor: pointer; }
+.primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.joinBtns button {
-    padding: 10px 20px;
-    margin: 5px;
-    border: none;
-    border-radius: 5px;
-    background-color: #4caf50;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-}
+/* LOG */
+.log { list-style: none; max-height: 200px; overflow-y: auto; padding-right: 6px; }
+.log li { font-size: 14px; margin-bottom: 6px; color: #444; }
 
-.joinBtns button:hover {
-    background-color: #45a049;
-}
+/* EXIT BUTTON */
+.exitBtn { padding: 10px 20px; border: none; border-radius: 5px; background-color: #f44336; color: white; cursor: pointer; margin-top: 16px; }
+.exitBtn:hover { background-color: #d32f2f; }
 
-/* ---------------------------------------------
-    GAME SCREEN
---------------------------------------------- */
-.topBar {
-    width: 90%;
-    max-width: 1200px;
-    margin-bottom: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-}
+/* ROLE MODAL */
+#roleModal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+.modalContent { background: #fff; padding: 20px; border-radius: 10px; text-align: center; width: 320px; }
+.modalContent img { width: 120px; height: 175px; margin: 15px 0; object-fit: cover; }
 
-#hostControls button {
-    padding: 8px 15px;
-    margin: 2px;
-    cursor: pointer;
-    border-radius: 5px;
-    border: none;
-    background-color: #2196f3;
-    color: white;
-}
+/* muted text */
+.muted { font-size: 13px; color: #666; margin-top:6px; }
 
-#hostControls button:hover {
-    background-color: #1976d2;
-}
-
-/* Host card fixed on top */
-.hostCard {
-    width: 200px;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.hostCard h3 {
-    font-size: 18px;
-    font-weight: bold;
-}
-
-/* Players grid */
-.players {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 15px;
-    width: 90%;
-    max-width: 1000px;
-    margin-bottom: 20px;
-}
-
-.playerCard {
-    background-color: #f1f1f1;
-    border-radius: 10px;
-    text-align: center;
-    padding: 10px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-.playerCard:hover {
-    transform: scale(1.05);
-}
-
-.playerCard img {
-    width: 100px;
-    height: 145px;
-    margin: 10px 0;
-}
-
-/* Exit button */
-.exitBtn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    background-color: #f44336;
-    color: white;
-    cursor: pointer;
-}
-
-.exitBtn:hover {
-    background-color: #d32f2f;
-}
-
-/* Role modal */
-#roleModal {
-    display: none;
-    position: fixed;
-    top:0; left:0;
-    width:100%; height:100%;
-    background: rgba(0,0,0,0.8);
-    justify-content: center;
-    align-items: center;
-}
-
-.modalContent {
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-}
-
-.modalContent img {
-    width: 120px;
-    height: 175px;
-    margin: 15px 0;
-}
-
-.modalContent .closeModal {
-    padding: 8px 15px;
-    border: none;
-    border-radius: 5px;
-    background-color: #2196f3;
-    color: white;
-    cursor: pointer;
-}
-.modalContent .closeModal:hover {
-    background-color: #1976d2;
+/* small screens */
+@media (max-width: 900px) {
+    .gameContainer { grid-template-columns: 1fr; }
+    .rightPanel { order: 2; }
 }
