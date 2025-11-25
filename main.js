@@ -15,7 +15,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// DOM Elements
+// DOM
 const screenJoin = document.getElementById("screenJoin");
 const screenGame = document.getElementById("screenGame");
 const joinHostBtn = document.getElementById("joinHostBtn");
@@ -26,7 +26,6 @@ const hostControls = document.getElementById("hostControls");
 const exitBtn = document.getElementById("exitBtn");
 const dealBtn = document.getElementById("dealBtn");
 const resetBtn = document.getElementById("resetBtn");
-const hostSeatDiv = document.getElementById("hostSeat");
 const hostNameDiv = document.getElementById("hostName");
 const roleModal = document.getElementById("roleModal");
 const modalName = document.getElementById("modalName");
@@ -99,19 +98,21 @@ function joinGame(){
     screenJoin.style.display="none";
     screenGame.style.display="flex";
     if(isHost) hostControls.classList.remove("hidden");
+    renderHost();
     renderPlayers();
 }
 
-// Render host and players
-function renderPlayers(){
-    // Host seat
+// Render host seat
+function renderHost(){
     onValue(ref(db,"game/host"), snap=>{
         const host = snap.val();
         hostNameDiv.textContent = host ? host.name : "";
     });
+}
 
-    // Player seats 1–9 only
-    onValue(ref(db, "game/players"), snap => {
+// Render players (1–9 only)
+function renderPlayers(){
+    onValue(ref(db,"game/players"), snap => {
         const players = snap.val() || {};
         playersList.innerHTML = "";
 
@@ -128,12 +129,13 @@ function renderPlayers(){
                 nameDiv.textContent = players[i].name;
                 div.appendChild(img);
                 div.appendChild(nameDiv);
-                div.onclick=()=>{if(isHost || i===mySeat){openModal(players[i].name, players[i].role);}};
+
+                div.onclick = ()=>{if(isHost || i===mySeat) openModal(players[i].name, players[i].role);}
             }else{
-                const img = document.createElement("img");
+                const img = document.createElement("img"); 
                 img.src="images/back.png";
-                const nameDiv = document.createElement("div");
-                nameDiv.className="playerName";
+                const nameDiv = document.createElement("div"); 
+                nameDiv.className="playerName"; 
                 nameDiv.textContent="Empty";
                 div.appendChild(img);
                 div.appendChild(nameDiv);
@@ -173,7 +175,7 @@ dealBtn.onclick=async ()=>{
     alert("Roles dealt!");
 };
 
-// Reset (host only)
+// Reset game (host only)
 resetBtn.onclick = async () => {
     if(!isHost) return;
     await remove(ref(db,"game/host"));
