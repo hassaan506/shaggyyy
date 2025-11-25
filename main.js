@@ -33,7 +33,7 @@ const shuffleBtn = document.getElementById("shuffleBtn");
 const resetBtn = document.getElementById("resetBtn");
 const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
-const endVoteBtn = document.getElementById("endVoteBtn"); // NEW
+const endVoteBtn = document.getElementById("endVoteBtn");
 
 const roleModal = document.getElementById("roleModal");
 const modalName = document.getElementById("modalName");
@@ -147,7 +147,7 @@ onValue(ref(db, "room"), (snap) => {
 
     hostControls.classList.toggle("hidden", !isHost);
 
-    // NEW: Control visibility of the 'End Vote' button for the host
+    // Control visibility of the 'End Vote' button for the host
     const phase = data.gamePhase;
     if (isHost) {
         endVoteBtn.classList.toggle("hidden", phase !== "day");
@@ -208,13 +208,13 @@ onValue(ref(db, "room"), (snap) => {
                 const btn = document.createElement("button");
                 btn.classList.add("targetBtn");
                 btn.innerText = p.name;
-                btn.onclick = () => {
-                    // Highlight selected
+                // --- FIX: Use addEventListener instead of onclick ---
+                btn.addEventListener('click', () => {
                     Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
                     btn.classList.add("selected");
                     submitActionBtn.disabled = false;
                     submitActionBtn.dataset.target = pid;
-                };
+                });
                 actionTargets.appendChild(btn);
             });
         }
@@ -228,12 +228,13 @@ onValue(ref(db, "room"), (snap) => {
             const btn = document.createElement("button");
             btn.classList.add("targetBtn");
             btn.innerText = p.name;
-            btn.onclick = () => {
+            // --- FIX: Use addEventListener instead of onclick ---
+            btn.addEventListener('click', () => {
                 Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
                 btn.classList.add("selected");
                 submitVoteBtn.disabled = false;
                 submitVoteBtn.dataset.vote = pid;
-            };
+            });
             voteTargets.appendChild(btn);
         });
     }
@@ -316,7 +317,7 @@ dayBtn.onclick = async () => {
 };
 
 // --------------------------------------------------
-// HOST: END VOTE & ELIMINATE (NEW FUNCTION)
+// HOST: END VOTE & ELIMINATE
 // --------------------------------------------------
 endVoteBtn.onclick = async () => {
     if (localStorage.getItem("isHost") !== "true") return;
