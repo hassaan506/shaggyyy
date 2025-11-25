@@ -41,25 +41,31 @@ let isHost = false;
 joinHostBtn.onclick = async () => {
     myName = playerNameInput.value.trim();
     if(!myName) return alert("Enter your name");
+
     const hostSnap = await get(ref(db,"game/host"));
     if(hostSnap.exists()) return alert("Host already exists");
+
     isHost = true;
-    mySeat = 0;
-    await set(ref(db,"game/host"),{name:myName});
+    mySeat = 0; // host seat
+    await set(ref(db,"game/host"), {name: myName});
+
     joinGame();
 };
 
 joinPlayerBtn.onclick = async () => {
     myName = playerNameInput.value.trim();
     if(!myName) return alert("Enter your name");
+
     const hostSnap = await get(ref(db,"game/host"));
     if(!hostSnap.exists()) return alert("Host not yet present");
+
     const seatsSnap = await get(ref(db,"game/players"));
-    const seats = seatsSnap.val()||{};
-    for(let i=1;i<=9;i++){
+    const seats = seatsSnap.val() || {};
+
+    for(let i = 1; i <= 9; i++){
         if(!seats[i]){
             mySeat = i;
-            await set(ref(db,`game/players/${i}`),{name:myName,role:"civilian",alive:true});
+            await set(ref(db, `game/players/${i}`), {name: myName, role:"civilian", alive:true});
             joinGame();
             return;
         }
@@ -69,9 +75,10 @@ joinPlayerBtn.onclick = async () => {
 
 // -------------------- JOIN SCREEN → GAME SCREEN --------------------
 function joinGame(){
-    screenJoin.style.display="none";
-    screenGame.style.display="flex";
+    screenJoin.style.display = "none";
+    screenGame.style.display = "flex"; // show game screen
     if(isHost) hostControls.classList.remove("hidden");
+
     renderPlayers();
     listenPlayers();
 }
@@ -89,27 +96,47 @@ exitBtn.onclick = async ()=>{
 
 // -------------------- RENDER PLAYERS --------------------
 function renderPlayers(){
-    onValue(ref(db,"game/players"), snap=>{
-        const players = snap.val()||{};
-        playersList.innerHTML="";
+    onValue(ref(db, "game/players"), snap => {
+        const players = snap.val() || {};
+        playersList.innerHTML = "";
+
+        // Add host seat
+        get(ref(db,"game/host")).then(hostSnap=>{
+            const host = hostSnap.val();
+            if(host){
+                const div = document.createElement("div");
+                div.className = "playerSeat";
+                const img = document.createElement("img");
+                img.src = isHost ? "images/back.png" : "images/back.png"; // host sees back initially
+                const nameDiv = document.createElement("div");
+                nameDiv.className = "playerName";
+                nameDiv.textContent = host.name + " (Host)";
+                div.appendChild(img); div.appendChild(nameDiv);
+                playersList.appendChild(div);
+            }
+        });
+
+        // Add 9 seats for players
         for(let i=1;i<=9;i++){
             const div = document.createElement("div");
-            div.className="playerSeat";
+            div.className = "playerSeat";
+
             if(players[i]){
                 const role = players[i].role.toLowerCase();
                 const img = document.createElement("img");
-                img.src = (isHost || i===mySeat)? `images/${role}.png` : `images/back.png`;
+                img.src = (isHost || i === mySeat) ? `images/${role}.png` : `images/back.png`;
                 if(!players[i].alive){div.classList.add("dead"); img.style.filter="grayscale(100%) brightness(50%)";}
                 const nameDiv = document.createElement("div");
                 nameDiv.className="playerName";
-                nameDiv.textContent = players[i].name;
+                nameDiv.textContent=players[i].name;
                 div.appendChild(img); div.appendChild(nameDiv);
-                div.onclick = ()=>{if(isHost || i===mySeat){openModal(players[i].name,players[i].role);}};
+                div.onclick = ()=>{if(isHost || i===mySeat){openModal(players[i].name, players[i].role);}};
             }else{
                 const img = document.createElement("img"); img.src="images/back.png";
                 const nameDiv = document.createElement("div"); nameDiv.className="playerName"; nameDiv.textContent="Empty";
                 div.appendChild(img); div.appendChild(nameDiv);
             }
+
             playersList.appendChild(div);
         }
     });
@@ -125,26 +152,29 @@ function listenPlayers(){
 
 // -------------------- ROLE MODAL --------------------
 function openModal(name,role){
-    modalName.textContent=name;
-    modalRole.src=`images/${role.toLowerCase()}.png`;
-    roleModal.style.display="flex";
+    modalName.textContent = name;
+    modalRole.src = `images/${role.toLowerCase()}.png`;
+    roleModal.style.display = "flex";
 }
-function closeModal(){roleModal.style.display="none";}
+function closeModal(){ roleModal.style.display = "none"; }
 
 // -------------------- HOST BUTTONS --------------------
-dealBtn.onclick=async ()=>{
+dealBtn.onclick = async ()=>{
     if(!isHost) return;
-    const rolesArray=["mafia","mafia","godfather","doctor","detective","civilian","civilian","civilian","civilian"];
+    const rolesArray = ["mafia","mafia","godfather","doctor","detective","civilian","civilian","civilian","civilian"];
+    
+    // Shuffle roles
     for(let i=rolesArray.length-1;i>0;i--){
         const j=Math.floor(Math.random()*(i+1));
-        [rolesArray[i],rolesArray[j]]=[rolesArray[j],rolesArray[i]];
+        [rolesArray[i], rolesArray[j]]=[rolesArray[j], rolesArray[i]];
     }
+
     const seatsSnap = await get(ref(db,"game/players"));
-    const seats = seatsSnap.val()||{};
+    const seats = seatsSnap.val() || {};
     let idx=0;
     for(let i=1;i<=9;i++){
         if(seats[i]){
-            await set(ref(db,`game/players/${i}/role`),rolesArray[idx]);
+            await set(ref(db,`game/players/${i}/role`), rolesArray[idx]);
             idx++;
         }
     }
@@ -152,7 +182,7 @@ dealBtn.onclick=async ()=>{
 };
 
 // Reset
-resetBtn.onclick=async ()=>{
+resetBtn.onclick = async ()=>{
     if(!isHost) return;
     await remove(ref(db,"game/host"));
     await remove(ref(db,"game/players"));
