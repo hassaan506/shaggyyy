@@ -63,9 +63,9 @@ window.onload = () => {
 };
 
 // --------------------------------------------------
-// JOIN HOST
+// EVENT LISTENERS (using addEventListener for better compatibility)
 // --------------------------------------------------
-joinHostBtn.onclick = async () => {
+joinHostBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
     if (!name) return alert("Enter host name.");
 
@@ -79,12 +79,9 @@ joinHostBtn.onclick = async () => {
 
     screenJoin.classList.add("hidden");
     screenGame.classList.remove("hidden");
-};
+});
 
-// --------------------------------------------------
-// JOIN PLAYER
-// --------------------------------------------------
-joinPlayerBtn.onclick = async () => {
+joinPlayerBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
     if (!name) return alert("Enter your name.");
 
@@ -97,12 +94,9 @@ joinPlayerBtn.onclick = async () => {
 
     screenJoin.classList.add("hidden");
     screenGame.classList.remove("hidden");
-};
+});
 
-// --------------------------------------------------
-// DEAL ROLES
-// --------------------------------------------------
-dealBtn.onclick = async () => {
+dealBtn.addEventListener('click', async () => {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
 
@@ -119,185 +113,22 @@ dealBtn.onclick = async () => {
     });
 
     alert("Roles assigned!");
-};
-
-// --------------------------------------------------
-// RESET GAME
-// --------------------------------------------------
-resetBtn.onclick = async () => {
-    await remove(ref(db, "room"));
-    localStorage.clear();
-    location.reload();
-};
-
-// --------------------------------------------------
-// RENDER GAME STATE
-// --------------------------------------------------
-onValue(ref(db, "room"), (snap) => {
-    const data = snap.val();
-    if (!data) return;
-
-    const isHost = localStorage.getItem("isHost") === "true";
-    const myId = localStorage.getItem("playerId");
-
-    if (data.host) {
-        hostStatus.innerText = "Host: " + data.host.name;
-        hostName.innerText = data.host.name;
-    }
-
-    hostControls.classList.toggle("hidden", !isHost);
-
-    // Control visibility of the 'End Vote' button for the host
-    const phase = data.gamePhase;
-    if (isHost) {
-        endVoteBtn.classList.toggle("hidden", phase !== "day");
-    }
-
-    // Clear panels
-    actionTargets.innerHTML = "";
-    voteTargets.innerHTML = "";
-    actionPanel.classList.add("hidden");
-    votingPanel.classList.add("hidden");
-
-    // Render players
-    playersList.innerHTML = "";
-    if (data.players) {
-        Object.entries(data.players).forEach(([pid, p]) => {
-            const canSeeCard = isHost || pid === myId;
-            const img = canSeeCard && p.role ? p.role : "back";
-
-            const div = document.createElement("div");
-            div.classList.add("playerCard");
-            div.innerHTML = `
-                <h3>${p.name}</h3>
-                <img src="images/${img}.png">
-                <p>${p.alive ? "Alive" : "Dead"}</p>
-            `;
-
-            div.onclick = () => {
-                if (!p.alive) return;
-
-                // Show role modal for host or self
-                if (canSeeCard) {
-                    modalName.innerText = p.name;
-                    modalRole.src = `images/${p.role ? p.role : "back"}.png`;
-                    modalRoleText.innerText = p.role ?? "";
-                    roleModal.style.display = "flex";
-                }
-            };
-
-            playersList.appendChild(div);
-        });
-    }
-
-    // Render night actions if alive
-    if (data.gamePhase === "night" && data.players[myId]?.alive) {
-        const role = data.players[myId].role;
-        if (["mafia", "godfather", "doctor", "detective"].includes(role)) {
-            actionPanel.classList.remove("hidden");
-
-            let instruction = "";
-            if (role === "mafia" || role === "godfather") instruction = "Select a player to eliminate";
-            else if (role === "doctor") instruction = "Select a player to save";
-            else if (role === "detective") instruction = "Select a player to investigate";
-
-            actionInstruction.innerText = instruction;
-
-            Object.entries(data.players).forEach(([pid, p]) => {
-                if (!p.alive || pid === myId) return;
-                const btn = document.createElement("button");
-                btn.classList.add("targetBtn");
-                btn.innerText = p.name;
-                // --- FIX: Use addEventListener instead of onclick ---
-                btn.addEventListener('click', () => {
-                    Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
-                    btn.classList.add("selected");
-                    submitActionBtn.disabled = false;
-                    submitActionBtn.dataset.target = pid;
-                });
-                actionTargets.appendChild(btn);
-            });
-        }
-    }
-
-    // Render voting during day
-    if (data.gamePhase === "day") {
-        votingPanel.classList.remove("hidden");
-        Object.entries(data.players).forEach(([pid, p]) => {
-            if (!p.alive || pid === myId) return;
-            const btn = document.createElement("button");
-            btn.classList.add("targetBtn");
-            btn.innerText = p.name;
-            // --- FIX: Use addEventListener instead of onclick ---
-            btn.addEventListener('click', () => {
-                Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
-                btn.classList.add("selected");
-                submitVoteBtn.disabled = false;
-                submitVoteBtn.dataset.vote = pid;
-            });
-            voteTargets.appendChild(btn);
-        });
-    }
-
-    // Update phase text
-    const phaseText = document.getElementById("phaseText");
-    phaseText.innerText = data.gamePhase ?? "Waiting";
 });
 
-// --------------------------------------------------
-// NIGHT ACTION SUBMIT
-// --------------------------------------------------
-submitActionBtn.onclick = async () => {
-    const myId = localStorage.getItem("playerId");
-    const role = (await get(ref(db, `room/players/${myId}/role`))).val();
-    const target = submitActionBtn.dataset.target;
-    if (!target) return alert("Select a target!");
-
-    if (role === "mafia" || role === "godfather") {
-        await set(ref(db, "room/night/mafiaTarget", target));
-        appendLog(`Mafia selected a target.`);
+resetBtn.addEventListener('click', async () => {
+    if (confirm("Are you sure you want to reset the entire game?")) {
+        await remove(ref(db, "room"));
+        localStorage.clear();
+        location.reload();
     }
-    else if (role === "doctor") {
-        await set(ref(db, "room/night/doctorSave", target));
-        appendLog(`Doctor will try to save ${target}.`);
-    }
-    else if (role === "detective") {
-        const targetRoleSnap = await get(ref(db, `room/players/${target}/role`));
-        const targetRole = targetRoleSnap.val();
-        const result = (targetRole === "mafia") ? "YES" : "NO";
-        await set(ref(db, `room/night/detectiveResult/${myId}`, {
-            target,
-            result
-        }));
-        alert(`Investigation result for ${target}: ${result}`);
-    }
+});
 
-    submitActionBtn.disabled = true;
-    Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
-};
-
-// --------------------------------------------------
-// DAY VOTING SUBMIT
-// --------------------------------------------------
-submitVoteBtn.onclick = async () => {
-    const myId = localStorage.getItem("playerId");
-    const vote = submitVoteBtn.dataset.vote;
-    if (!vote) return alert("Select a player to vote!");
-    await set(ref(db, `room/votes/${myId}`), vote);
-    // Removed public log message for secrecy
-    submitVoteBtn.disabled = true;
-    Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
-};
-
-// --------------------------------------------------
-// HOST: NIGHT / DAY PHASE
-// --------------------------------------------------
-nightBtn.onclick = () => {
+nightBtn.addEventListener('click', () => {
     if (localStorage.getItem("isHost") !== "true") return;
     set(ref(db, "room/gamePhase"), "night");
-};
+});
 
-dayBtn.onclick = async () => {
+dayBtn.addEventListener('click', async () => {
     if (localStorage.getItem("isHost") !== "true") return;
     const night = (await get(ref(db, "room/night"))).val() || {};
 
@@ -314,12 +145,9 @@ dayBtn.onclick = async () => {
 
     // Set the game phase to "day"
     set(ref(db, "room/gamePhase"), "day");
-};
+});
 
-// --------------------------------------------------
-// HOST: END VOTE & ELIMINATE
-// --------------------------------------------------
-endVoteBtn.onclick = async () => {
+endVoteBtn.addEventListener('click', async () => {
     if (localStorage.getItem("isHost") !== "true") return;
 
     const votesSnap = await get(ref(db, "room/votes"));
@@ -369,8 +197,182 @@ endVoteBtn.onclick = async () => {
 
     // Clear the votes after the round is over
     await remove(ref(db, "room/votes"));
-};
+});
 
+submitActionBtn.addEventListener('click', async () => {
+    const myId = localStorage.getItem("playerId");
+    const role = (await get(ref(db, `room/players/${myId}/role`))).val();
+    const target = submitActionBtn.dataset.target;
+    if (!target) return alert("Select a target!");
+
+    if (role === "mafia" || role === "godfather") {
+        await set(ref(db, "room/night/mafiaTarget", target));
+        appendLog(`Mafia selected a target.`);
+    }
+    else if (role === "doctor") {
+        await set(ref(db, "room/night/doctorSave", target));
+        appendLog(`Doctor will try to save ${target}.`);
+    }
+    else if (role === "detective") {
+        const targetRoleSnap = await get(ref(db, `room/players/${target}/role`));
+        const targetRole = targetRoleSnap.val();
+        const result = (targetRole === "mafia" || targetRole === "godfather") ? "YES" : "NO";
+        await set(ref(db, `room/night/detectiveResult/${myId}`, {
+            target,
+            result
+        }));
+        alert(`Investigation result for ${target}: ${result}`);
+    }
+
+    submitActionBtn.disabled = true;
+    Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
+});
+
+submitVoteBtn.addEventListener('click', async () => {
+    const myId = localStorage.getItem("playerId");
+    const vote = submitVoteBtn.dataset.vote;
+    if (!vote) return alert("Select a player to vote!");
+    await set(ref(db, `room/votes/${myId}`), vote);
+    submitVoteBtn.disabled = true;
+    Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
+    // Optional: Give feedback to the user
+    voteInstruction.innerText = "Vote submitted. Waiting for other players...";
+});
+
+document.getElementById("exitBtn").addEventListener('click', () => {
+    if (confirm("Are you sure you want to exit the game?")) {
+        localStorage.clear();
+        location.reload();
+    }
+});
+
+window.closeModal = () => roleModal.style.display = "none";
+
+
+// --------------------------------------------------
+// RENDER GAME STATE
+// --------------------------------------------------
+onValue(ref(db, "room"), (snap) => {
+    const data = snap.val();
+    if (!data) return;
+
+    const isHost = localStorage.getItem("isHost") === "true";
+    const myId = localStorage.getItem("playerId");
+
+    if (data.host) {
+        hostStatus.innerText = "Host: " + data.host.name;
+        hostName.innerText = data.host.name;
+    }
+
+    hostControls.classList.toggle("hidden", !isHost);
+
+    // Control visibility of the 'End Vote' button for the host
+    const phase = data.gamePhase;
+    if (isHost) {
+        endVoteBtn.classList.toggle("hidden", phase !== "day");
+    }
+
+    // Clear panels and buttons
+    actionTargets.innerHTML = "";
+    voteTargets.innerHTML = "";
+    actionPanel.classList.add("hidden");
+    votingPanel.classList.add("hidden");
+    submitActionBtn.disabled = true;
+    submitVoteBtn.disabled = true;
+
+    // Render players
+    playersList.innerHTML = "";
+    if (data.players) {
+        Object.entries(data.players).forEach(([pid, p]) => {
+            const canSeeCard = isHost || pid === myId;
+            const img = canSeeCard && p.role ? p.role : "back";
+
+            const div = document.createElement("div");
+            div.classList.add("playerCard");
+            div.innerHTML = `
+                <h3>${p.name}</h3>
+                <img src="images/${img}.png">
+                <p>${p.alive ? "Alive" : "Dead"}</p>
+            `;
+
+            div.addEventListener('click', () => {
+                if (!p.alive) return;
+                if (canSeeCard) {
+                    modalName.innerText = p.name;
+                    modalRole.src = `images/${p.role ? p.role : "back"}.png`;
+                    modalRoleText.innerText = p.role ?? "";
+                    roleModal.style.display = "flex";
+                }
+            });
+
+            playersList.appendChild(div);
+        });
+    }
+
+    // Render night actions if alive
+    if (data.gamePhase === "night" && data.players[myId]?.alive) {
+        const role = data.players[myId].role;
+        if (["mafia", "godfather", "doctor", "detective"].includes(role)) {
+            actionPanel.classList.remove("hidden");
+
+            let instruction = "";
+            if (role === "mafia" || role === "godfather") instruction = "Select a player to eliminate";
+            else if (role === "doctor") instruction = "Select a player to save";
+            else if (role === "detective") instruction = "Select a player to investigate";
+
+            actionInstruction.innerText = instruction;
+
+            Object.entries(data.players).forEach(([pid, p]) => {
+                if (!p.alive || pid === myId) return;
+                const btn = document.createElement("button");
+                btn.classList.add("targetBtn");
+                btn.innerText = p.name;
+
+                const handleActionTargetClick = () => {
+                    Array.from(actionTargets.children).forEach(b => b.classList.remove("selected"));
+                    btn.classList.add("selected");
+                    submitActionBtn.disabled = false;
+                    submitActionBtn.dataset.target = pid;
+                };
+
+                // Listen for both click and touchstart for maximum compatibility
+                btn.addEventListener('click', handleActionTargetClick);
+                btn.addEventListener('touchstart', handleActionTargetClick);
+
+                actionTargets.appendChild(btn);
+            });
+        }
+    }
+
+    // Render voting during day
+    if (data.gamePhase === "day") {
+        votingPanel.classList.remove("hidden");
+        voteInstruction.innerText = "Select a player to vote"; // Reset instruction text
+        Object.entries(data.players).forEach(([pid, p]) => {
+            if (!p.alive || pid === myId) return;
+            const btn = document.createElement("button");
+            btn.classList.add("targetBtn");
+            btn.innerText = p.name;
+
+            const handleVoteTargetClick = () => {
+                Array.from(voteTargets.children).forEach(b => b.classList.remove("selected"));
+                btn.classList.add("selected");
+                submitVoteBtn.disabled = false;
+                submitVoteBtn.dataset.vote = pid;
+            };
+            
+            // Listen for both click and touchstart for maximum compatibility
+            btn.addEventListener('click', handleVoteTargetClick);
+            btn.addEventListener('touchstart', handleVoteTargetClick);
+
+            voteTargets.appendChild(btn);
+        });
+    }
+
+    // Update phase text
+    const phaseText = document.getElementById("phaseText");
+    phaseText.innerText = data.gamePhase ?? "Waiting";
+});
 
 // --------------------------------------------------
 // PHASE UI
@@ -389,16 +391,3 @@ onValue(ref(db, "room/gamePhase"), (snap) => {
     document.body.classList.toggle("day", phase === "day");
     document.getElementById("phaseText").innerText = phase;
 });
-
-// --------------------------------------------------
-// CLOSE MODAL
-// --------------------------------------------------
-window.closeModal = () => roleModal.style.display = "none";
-
-// --------------------------------------------------
-// EXIT GAME
-// --------------------------------------------------
-document.getElementById("exitBtn").onclick = () => {
-    localStorage.clear();
-    location.reload();
-};
