@@ -4,31 +4,50 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mafia Wars Online</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=1.6">
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
-<body>
-<div id="join-screen">
-  <h1>Mafia Wars</h1>
-  <input type="text" id="playerName" placeholder="Enter your name">
-  <button id="joinHost">Join as Host</button>
-  <button id="joinPlayer">Join as Player</button>
+<body class="dark">
+
+<!-- JOIN SCREEN -->
+<div id="screenJoin" class="screen">
+    <div class="joinCard">
+        <h1>Mafia Wars Online</h1>
+        <input type="text" id="playerName" placeholder="Enter your name">
+        <div class="joinBtns">
+            <button id="joinHostBtn">Join as Host</button>
+            <button id="joinPlayerBtn">Join as Player</button>
+        </div>
+    </div>
 </div>
 
-<div id="game-screen" class="hidden">
-  <div id="hostControls" class="hidden">
-    <h2>Host Panel</h2>
-    <button id="dealCards">Deal / Shuffle</button>
-    <button id="resetGame">Reset Game</button>
-    <button id="transferHost">Transfer Host</button>
-    <button id="toggleMode">Toggle Dark/Light Mode</button>
-  </div>
+<!-- GAME SCREEN -->
+<div id="screenGame" class="screen hidden">
+    <div class="topBar">
+        <h2 id="hostStatus">Waiting for host...</h2>
+        <div id="hostControls" class="hidden">
+            <button id="dealBtn">Deal Roles</button>
+            <button id="shuffleBtn">Shuffle</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+    </div>
 
-  <div id="playersList"></div>
-  <div id="gameActions"></div>
-  <div id="messages"></div>
-  <button id="exitGame">Exit Game</button>
+    <div id="playersList" class="players"></div>
+
+    <button id="exitBtn" class="exitBtn">Exit Game</button>
 </div>
 
-<script type="module" src="main.js"></script>
+<!-- ROLE MODAL -->
+<div id="roleModal">
+    <div class="modalContent">
+        <h2 id="modalName">Player Name</h2>
+        <img id="modalRole" src="" alt="Role Card">
+        <button class="closeModal" onclick="closeModal()">Close</button>
+    </div>
+</div>
+
+<script src="main.js?v=1.6"></script>
 </body>
 </html>
