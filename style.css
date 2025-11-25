@@ -4,16 +4,50 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 body.day { background-color: #e4e4e4; color: #222; }
 body.night { background-color: #121212; color: #ddd; }
-button { touch-action: manipulation; } /* Fix mobile tap delay */
+button { touch-action: manipulation; } 
 
 .screen { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 15px; }
 .hidden { display: none !important; }
 
-/* JOIN SCREEN */
-.joinCard { background: #fff; padding: 30px; border-radius: 12px; text-align: center; margin-top: 10vh; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; }
+/* JOIN SCREEN & TITLE */
+.joinCard { 
+    background: #fff; 
+    padding: 30px; 
+    border-radius: 12px; 
+    text-align: center; 
+    margin-top: 10vh; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+    width: 90%; 
+    max-width: 400px; 
+    border: 1px solid #ddd;
+}
+
+/* Stylish Title Font */
+.gameTitle {
+    font-family: 'Creepster', cursive; /* The new stylish font */
+    font-size: 48px;
+    color: #d32f2f; /* Blood Red color */
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+    text-shadow: 2px 2px 0px #000;
+}
+
+/* Author Signature */
+.author {
+    font-size: 14px;
+    font-weight: bold;
+    color: #555;
+    margin-bottom: 20px;
+    font-style: italic;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    display: inline-block;
+}
+
 .joinCard input { padding: 12px; margin: 15px 0; width: 100%; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
 .joinBtns { display: flex; gap: 10px; justify-content: center; }
-.joinBtns button { padding: 12px 20px; border: none; border-radius: 6px; background: #28a745; color: white; font-weight: bold; cursor: pointer; font-size: 16px; }
+.joinBtns button { padding: 12px 20px; border: none; border-radius: 6px; background: #28a745; color: white; font-weight: bold; cursor: pointer; font-size: 16px; transition: transform 0.1s; }
+.joinBtns button:active { transform: scale(0.95); }
 
 /* TOPBAR & HOST */
 .topBar { width: 100%; max-width: 1200px; margin-bottom: 20px; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -74,6 +108,6 @@ body.night .panel { background: rgba(255,255,255,0.1); }
 /* RESPONSIVE */
 @media (max-width: 768px) {
     .gameContainer { grid-template-columns: 1fr; }
-    .rightPanel { order: -1; } /* Controls on top on mobile */
+    .rightPanel { order: -1; } 
     .topBar { font-size: 12px; }
 }
