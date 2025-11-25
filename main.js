@@ -26,6 +26,8 @@ const hostStatus = document.getElementById("hostStatus");
 const exitBtn = document.getElementById("exitBtn");
 const dealBtn = document.getElementById("dealBtn");
 const resetBtn = document.getElementById("resetBtn");
+const hostSeatDiv = document.getElementById("hostSeat");
+const hostNameDiv = document.getElementById("hostName");
 const roleModal = document.getElementById("roleModal");
 const modalName = document.getElementById("modalName");
 const modalRole = document.getElementById("modalRole");
@@ -64,8 +66,6 @@ joinHostBtn.onclick = async () => {
     localStorage.setItem("isHost", true);
 
     await set(ref(db,"game/host"), {name: myName});
-    await set(ref(db,"game/players/0"), {name: myName, role:"host", alive:true});
-
     joinGame();
 };
 
@@ -100,30 +100,19 @@ function joinGame(){
     screenGame.style.display="flex";
     if(isHost) hostControls.classList.remove("hidden");
     renderPlayers();
-    listenPlayers();
 }
 
 // ---------- Render Players ----------
 function renderPlayers(){
+    onValue(ref(db,"game/host"), snap=>{
+        const host = snap.val();
+        hostNameDiv.textContent = host ? host.name : "";
+    });
+
     onValue(ref(db, "game/players"), snap => {
         const players = snap.val() || {};
         playersList.innerHTML = "";
 
-        // HOST seat on top (no card initially)
-        get(ref(db,"game/host")).then(hostSnap=>{
-            const hostData = hostSnap.val();
-            if(hostData){
-                const div = document.createElement("div");
-                div.className="playerSeat";
-                const nameDiv = document.createElement("div");
-                nameDiv.className="playerName";
-                nameDiv.textContent = hostData.name + " (Host)";
-                div.appendChild(nameDiv); 
-                playersList.appendChild(div);
-            }
-        });
-
-        // Player seats 1–9
         for(let i=1;i<=9;i++){
             const div = document.createElement("div");
             div.className="playerSeat";
@@ -132,7 +121,6 @@ function renderPlayers(){
                 const role = players[i].role.toLowerCase();
                 const img = document.createElement("img");
                 img.src = (isHost || i===mySeat) ? `images/${role}.png` : "images/back.png";
-                if(!players[i].alive){div.classList.add("dead"); img.style.filter="grayscale(100%) brightness(50%)";}
                 const nameDiv = document.createElement("div");
                 nameDiv.className="playerName";
                 nameDiv.textContent=players[i].name;
@@ -145,14 +133,6 @@ function renderPlayers(){
             }
             playersList.appendChild(div);
         }
-    });
-}
-
-// ---------- Listen Host ----------
-function listenPlayers(){
-    onValue(ref(db,"game/host"), snap=>{
-        const host = snap.val();
-        hostStatus.textContent = host ? `Host: ${host.name}` : "Waiting for host...";
     });
 }
 
@@ -186,15 +166,15 @@ dealBtn.onclick=async ()=>{
 };
 
 // ---------- Reset & Exit ----------
-resetBtn.onclick=async ()=>{
+resetBtn.onclick = async () => {
     if(!isHost) return;
-    await remove(ref(db,"game/host"));      // remove host
-    await remove(ref(db,"game/players"));   // remove all players
+    await remove(ref(db,"game/host"));
+    await remove(ref(db,"game/players"));
     localStorage.clear();
     location.reload();
 };
 
-exitBtn.onclick=async ()=>{
+exitBtn.onclick = async ()=>{
     localStorage.clear();
     if(isHost){
         await remove(ref(db,"game/host"));
