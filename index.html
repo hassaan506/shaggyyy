@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mafia Wars Online</title>
-<link rel="stylesheet" href="style.css?v=1.5">
+<link rel="stylesheet" href="style.css">
 </head>
 <body class="dark">
 
@@ -22,24 +22,20 @@
 
 <!-- GAME SCREEN -->
 <div id="screenGame" class="screen hidden">
-    <div class="topBar">
-        <h2 id="hostStatus">Waiting for host...</h2>
-        <div id="hostControls" class="hidden">
-            <button id="dealBtn">Deal Roles</button>
-            <button id="shuffleBtn">Shuffle</button>
-            <button id="resetBtn">Reset</button>
-            <button id="nightBtn">Night Phase</button>
-            <button id="dayBtn">Day Phase</button>
-        </div>
-    </div>
 
-    <!-- Host seat on top -->
-    <div id="hostSeat" class="playerSeat">
+    <!-- HOST SEAT -->
+    <div id="hostSeat">
         <h3>Host</h3>
         <div id="hostName"></div>
     </div>
 
-    <!-- Player seats -->
+    <!-- HOST CONTROLS -->
+    <div id="hostControls" class="hidden">
+        <button id="dealBtn">Deal Roles</button>
+        <button id="resetBtn">Reset Game</button>
+    </div>
+
+    <!-- PLAYERS GRID -->
     <div id="playersList" class="players"></div>
 
     <button id="exitBtn" class="exitBtn">Exit Game</button>
@@ -54,6 +50,6 @@
     </div>
 </div>
 
-<script type="module" src="main.js?v=1.5"></script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
