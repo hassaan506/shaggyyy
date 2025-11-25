@@ -174,34 +174,15 @@ resetBtn.onclick = async () => {
     location.reload();
 };
 
-// -------------------- NIGHT/DAY --------------------
-nightBtn.onclick = async () => {
-    if(localStorage.getItem("isHost")!=="true") return alert("Only host can start night.");
-    await update(ref(db,"room/game"), { phase: "night", mafiaTarget:null, doctorSave:null, detectiveCheck:null });
-};
+// NIGHT/DAY THEME
+if(data.game?.phase==="night"){
+    document.body.style.backgroundColor = "#000"; // true black
+    document.body.style.color = "#fff";           // white text
+} else {
+    document.body.style.backgroundColor = "#ffffff"; // pure white
+    document.body.style.color = "#000000";           // black text
+}
 
-dayBtn.onclick = async () => {
-    if(localStorage.getItem("isHost")!=="true") return alert("Only host can start day.");
-    // Process night actions before switching to day
-    const gameSnap = await get(ref(db,"room/game"));
-    const game = gameSnap.val() || {};
-    const playersSnap = await get(ref(db,"room/players"));
-    const players = playersSnap.val() || {};
-
-    // Mafia kills unless saved by doctor or grandma
-    if(game.mafiaTarget && players[game.mafiaTarget]) {
-        if(game.mafiaTarget === game.grandmaId){
-            // mafia dies
-            Object.entries(players).forEach(async ([pid, p])=>{
-                if(p.role==="mafia"||p.role==="godfather") await set(ref(db,`room/players/${pid}/alive`),false);
-            });
-        } else if(game.mafiaTarget !== game.doctorSave) {
-            await set(ref(db,`room/players/${game.mafiaTarget}/alive`),false);
-        }
-    }
-
-    await update(ref(db,"room/game"), { phase:"day", mafiaTarget:null, doctorSave:null, detectiveCheck:null });
-};
 
 // -------------------- VOTING --------------------
 window.vote = async (pid) => {
@@ -221,3 +202,4 @@ exitBtn.onclick = async ()=>{
 
 // -------------------- MODAL --------------------
 window.closeModal = ()=> roleModal.style.display="none";
+
