@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mafia Wars Online</title>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=1.5">
 </head>
+<body class="day">
 
-<body class="dark">
-
-<!-- JOIN SCREEN -->
+<!-- ---------------------------------------------
+    JOIN SCREEN
+--------------------------------------------- -->
 <div id="screenJoin" class="screen">
     <div class="joinCard">
         <h1>Mafia Wars Online</h1>
@@ -21,36 +22,45 @@
     </div>
 </div>
 
-<!-- GAME SCREEN -->
+<!-- ---------------------------------------------
+    GAME SCREEN
+--------------------------------------------- -->
 <div id="screenGame" class="screen hidden">
 
-    <!-- HOST AREA (always top and separate) -->
-    <div class="hostArea">
+    <!-- Top bar: host info & controls -->
+    <div class="topBar">
         <h2 id="hostStatus">Waiting for host...</h2>
         <div id="hostControls" class="hidden">
             <button id="dealBtn">Deal Roles</button>
             <button id="shuffleBtn">Shuffle</button>
-            <button id="resetBtn">Reset</button>
-            <button id="nightBtn">Night</button>
-            <button id="dayBtn">Day</button>
+            <button id="resetBtn">Reset Game</button>
+            <button id="nightBtn">Night Phase</button>
+            <button id="dayBtn">Day Phase</button>
         </div>
     </div>
 
-    <!-- PLAYER GRID -->
-    <div id="playersList" class="playersGrid"></div>
+    <!-- Host card -->
+    <div id="hostCard" class="hostCard">
+        <h3 id="hostName">Host: </h3>
+    </div>
+
+    <!-- Players seats -->
+    <div id="playersList" class="players"></div>
 
     <button id="exitBtn" class="exitBtn">Exit Game</button>
 </div>
 
-<!-- ROLE MODAL -->
+<!-- ---------------------------------------------
+    ROLE MODAL
+--------------------------------------------- -->
 <div id="roleModal">
     <div class="modalContent">
-        <h2 id="modalName"></h2>
-        <img id="modalRole" src="">
+        <h2 id="modalName">Player Name</h2>
+        <img id="modalRole" src="" alt="Role Card">
         <button class="closeModal" onclick="closeModal()">Close</button>
     </div>
 </div>
 
-<script type="module" src="main.js?v=3"></script>
+<script type="module" src="main.js?v=1.5"></script>
 </body>
 </html>
