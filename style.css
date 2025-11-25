@@ -1,254 +1,152 @@
-body{
-    margin:0;
-    font-family:sans-serif;
-    background:#121212;
-    color:#fff;
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: white;
 }
 
-.screen{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    flex-direction:column;
-    height:100vh;
+/* SCREENS */
+.screen {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-.hidden{display:none;}
-
-.joinCard{
-    background:#1f1f1f;
-    padding:20px 40px;
-    border-radius:12px;
-    text-align:center;
+.hidden {
+    display: none !important;
 }
 
-.joinCard input{
-    padding:10px;
-    width:200px;
-    margin:10px 0;
-    border-radius:6px;
-    border:none;
+/* JOIN CARD */
+.joinCard {
+    background: #222;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    width: 320px;
 }
 
-.joinBtns button{
-    padding:10px 20px;
-    margin:5px;
-    border:none;
-    border-radius:6px;
-    cursor:pointer;
-    background:#ff9900;
-    color:#000;
-    font-weight:bold;
+.joinCard h1 {
+    margin-bottom: 20px;
 }
 
-#hostSeat{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    margin-bottom:20px;
+.joinCard input {
+    width: 90%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 6px;
+    border: none;
+    outline: none;
 }
 
-#hostSeat h3{
-    margin:0;
-    color:#ffdd00;
+.joinBtns button {
+    width: 45%;
+    padding: 10px;
+    margin: 5px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #444;
+    color: white;
+    font-size: 14px;
 }
 
-#hostSeat div{
-    color:#fff;
-    font-weight:bold;
-    margin-top:5px;
+.joinBtns button:hover {
+    background: #666;
 }
 
-.players{
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap:10px;
-    width:100%;
-    max-width:600px;
+/* HOST AREA FIXED AT TOP */
+.hostArea {
+    text-align: center;
+    margin-bottom: 25px;
 }
 
-.playerSeat{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    background:#1f1f1f;
-    padding:5px;
-    border-radius:8px;
+#hostControls button {
+    margin: 5px;
+    padding: 10px 15px;
+    background: #333;
+    border: none;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
 }
 
-.playerSeat img{
-    width:80px;
-    height:120px;
+#hostControls button:hover {
+    background: #555;
 }
 
-.playerName{
-    margin-top:5px;
-    font-weight:bold;
+/* PLAYER GRID */
+.playersGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    width: 90%;
+    max-width: 650px;
+    margin: 0 auto;
 }
 
-#hostControls{
-    margin:10px;
+.playerCard {
+    background: #222;
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid #444;
 }
 
-.exitBtn{
-    margin-top:20px;
-    padding:10px 20px;
-    border:none;
-    border-radius:6px;
-    background:#ff3300;
-    color:#fff;
-    font-weight:bold;
-    cursor:pointer;
+.playerCard img {
+    width: 80px;
+    height: 120px;
+    margin-top: 8px;
 }
 
-/* Modal */
-#roleModal{
-    position:fixed;
-    top:0;
-    left:0;
-    width:100%;
-    height:100%;
-    background:rgba(0,0,0,0.8);
-    display:none;
-    justify-content:center;
-    align-items:center;
+/* EXIT BUTTON */
+.exitBtn {
+    margin-top: 25px;
+    padding: 10px 20px;
+    background: #660000;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
 }
 
-.modalContent{
-    background:#1f1f1f;
-    padding:20px;
-    border-radius:12px;
-    text-align:center;
+/* ROLE MODAL */
+#roleModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.85);
+    justify-content: center;
+    align-items: center;
 }
 
-.modalContent img{
-    width:120px;
-    height:180px;
-}
-body{
-    margin:0;
-    font-family:sans-serif;
-    background:#121212;
-    color:#fff;
+.modalContent {
+    background: #222;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    width: 260px;
 }
 
-.screen{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    flex-direction:column;
-    height:100vh;
+.modalContent img {
+    width: 120px;
+    height: 180px;
+    margin: 15px 0;
 }
 
-.hidden{display:none;}
-
-.joinCard{
-    background:#1f1f1f;
-    padding:20px 40px;
-    border-radius:12px;
-    text-align:center;
+.closeModal {
+    padding: 10px 20px;
+    background: #444;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
 }
 
-.joinCard input{
-    padding:10px;
-    width:200px;
-    margin:10px 0;
-    border-radius:6px;
-    border:none;
-}
-
-.joinBtns button{
-    padding:10px 20px;
-    margin:5px;
-    border:none;
-    border-radius:6px;
-    cursor:pointer;
-    background:#ff9900;
-    color:#000;
-    font-weight:bold;
-}
-
-#hostSeat{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    margin-bottom:20px;
-}
-
-#hostSeat h3{
-    margin:0;
-    color:#ffdd00;
-}
-
-#hostSeat div{
-    color:#fff;
-    font-weight:bold;
-    margin-top:5px;
-}
-
-.players{
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap:10px;
-    width:100%;
-    max-width:600px;
-}
-
-.playerSeat{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    background:#1f1f1f;
-    padding:5px;
-    border-radius:8px;
-}
-
-.playerSeat img{
-    width:80px;
-    height:120px;
-}
-
-.playerName{
-    margin-top:5px;
-    font-weight:bold;
-}
-
-#hostControls{
-    margin:10px;
-}
-
-.exitBtn{
-    margin-top:20px;
-    padding:10px 20px;
-    border:none;
-    border-radius:6px;
-    background:#ff3300;
-    color:#fff;
-    font-weight:bold;
-    cursor:pointer;
-}
-
-/* Modal */
-#roleModal{
-    position:fixed;
-    top:0;
-    left:0;
-    width:100%;
-    height:100%;
-    background:rgba(0,0,0,0.8);
-    display:none;
-    justify-content:center;
-    align-items:center;
-}
-
-.modalContent{
-    background:#1f1f1f;
-    padding:20px;
-    border-radius:12px;
-    text-align:center;
-}
-
-.modalContent img{
-    width:120px;
-    height:180px;
+.night {
+    background: #000 !important;
 }
