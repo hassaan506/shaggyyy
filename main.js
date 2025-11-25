@@ -35,7 +35,7 @@ let myName = "";
 let mySeat = null;
 let isHost = false;
 
-// ---------- LocalStorage Restore ----------
+// ---------- Restore LocalStorage ----------
 window.onload = async () => {
     const storedName = localStorage.getItem("myName");
     const storedSeat = localStorage.getItem("mySeat");
@@ -109,22 +109,25 @@ function renderPlayers(){
         const players = snap.val() || {};
         playersList.innerHTML = "";
 
-        // Host seat 0
-        if(players[0]){
-            const div = document.createElement("div");
-            div.className="playerSeat";
-            const img = document.createElement("img");
-            img.src="images/back.png";
-            const nameDiv = document.createElement("div");
-            nameDiv.className="playerName";
-            nameDiv.textContent = players[0].name + " (Host)";
-            div.appendChild(img); div.appendChild(nameDiv);
-            playersList.appendChild(div);
-        }
+        // HOST seat on top (no card initially)
+        get(ref(db,"game/host")).then(hostSnap=>{
+            const hostData = hostSnap.val();
+            if(hostData){
+                const div = document.createElement("div");
+                div.className="playerSeat";
+                const nameDiv = document.createElement("div");
+                nameDiv.className="playerName";
+                nameDiv.textContent = hostData.name + " (Host)";
+                div.appendChild(nameDiv); 
+                playersList.appendChild(div);
+            }
+        });
 
+        // Player seats 1–9
         for(let i=1;i<=9;i++){
             const div = document.createElement("div");
             div.className="playerSeat";
+
             if(players[i]){
                 const role = players[i].role.toLowerCase();
                 const img = document.createElement("img");
@@ -185,8 +188,8 @@ dealBtn.onclick=async ()=>{
 // ---------- Reset & Exit ----------
 resetBtn.onclick=async ()=>{
     if(!isHost) return;
-    await remove(ref(db,"game/host"));
-    await remove(ref(db,"game/players"));
+    await remove(ref(db,"game/host"));      // remove host
+    await remove(ref(db,"game/players"));   // remove all players
     localStorage.clear();
     location.reload();
 };
