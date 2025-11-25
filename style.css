@@ -2,82 +2,68 @@
     GENERAL STYLES
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
-body.day { background-color: #ffffff; color: #000000; transition: background-color .3s, color .3s; }
-body.night { background-color: #0b0b12; color: #ffffff; transition: background-color .3s, color .3s; }
+body.day { background-color: #e0e0e0; color: #000; transition: .3s; }
+body.night { background-color: #1a1a24; color: #fff; transition: .3s; }
 
-.screen { width: 100%; min-height: 100vh; display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 20px; }
+.screen { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 10px; }
 .hidden { display: none !important; }
 
 /* JOIN */
-.joinCard { background-color: #f5f5f5; padding: 25px 30px; border-radius: 10px; text-align: center; box-shadow: 0px 0px 15px rgba(0,0,0,0.12); width: 90%; max-width: 400px; }
-.joinCard input { width: 90%; padding: 10px; margin: 15px 0; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
-.joinBtns button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; background-color: #4caf50; color: white; font-weight: bold; cursor: pointer; }
-.joinBtns button:hover { background-color: #45a049; }
+.joinCard { background: #fff; padding: 30px; border-radius: 10px; text-align: center; margin-top: 50px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+.joinCard input { padding: 10px; margin: 10px 0; width: 200px; }
+.joinBtns button { padding: 10px; margin: 5px; cursor: pointer; }
 
 /* TOPBAR */
-.topBar { width: 100%; max-width: 1200px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
-#hostControls button { padding: 6px 10px; margin: 2px; cursor: pointer; border-radius: 5px; border: none; background-color: #2196f3; color: white; font-size: 14px; }
-#hostControls button:hover { background-color: #1976d2; }
-#cleanBtn { background:#ff9800; }
-#cleanBtn:hover { background:#fb8c00; }
+.topBar { width: 100%; max-width: 1200px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 8px; }
+#hostControls button { margin: 2px; padding: 5px 10px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
+#hostControls button:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.6; }
+#hostControls button:hover:not(:disabled) { background: #0056b3; }
+
+/* CENTRAL DECK AREA */
+.tableArea { width: 100%; display: flex; justify-content: center; margin-bottom: 20px; min-height: 140px; }
+.deckWrapper { text-align: center; }
+.cardDeck { position: relative; width: 80px; height: 115px; margin: 0 auto; cursor: pointer; }
+.deckImg { width: 80px; height: 115px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); position: absolute; left: 0; top: 0; transition: transform 0.3s; }
+/* Stack effect */
+.layer1 { transform: translate(2px, -2px); z-index: -1; }
+.layer2 { transform: translate(4px, -4px); z-index: -2; }
+
+/* Animation class for shuffling */
+.shaking { animation: shake 0.5s infinite; }
+@keyframes shake {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(5deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(-5deg); }
+  100% { transform: rotate(0deg); }
+}
 
 /* LAYOUT */
-.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 280px; gap: 15px; align-items:start; }
-.players { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; width: 100%; margin-bottom: 20px; }
-.playerCard { background-color: #f1f1f1; border-radius: 10px; text-align: center; padding: 8px; cursor: pointer; transition: transform 0.15s; box-shadow: 0 6px 12px rgba(0,0,0,0.06); }
-.playerCard:hover { transform: translateY(-2px); }
-.playerCard img { width: 80px; height: 115px; margin: 8px 0; object-fit: cover; border-radius: 6px; }
+.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+.players { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 15px; }
+
+/* PLAYER CARDS */
+.playerCard { background: rgba(255,255,255,0.8); border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+body.night .playerCard { background: rgba(255,255,255,0.1); }
+
+.playerCard img { width: 80px; height: 115px; border-radius: 5px; object-fit: cover; }
+.emptySlot { width: 80px; height: 115px; border: 2px dashed #999; border-radius: 5px; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #777; font-size: 12px; }
 
 /* RIGHT PANEL */
-.rightPanel { display:flex; flex-direction: column; gap: 10px; }
-.panel { background: rgba(255,255,255,0.04); padding: 10px; border-radius: 8px; min-height: 60px; }
-.phaseBanner { background: #2f2f2f; color: white; padding: 6px 10px; border-radius: 6px; text-align: center; margin-bottom: 6px; font-size: 14px; }
-.phaseBanner span { font-weight: bold; }
+.rightPanel { display: flex; flex-direction: column; gap: 10px; }
+.panel { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 8px; }
+body.night .panel { background: rgba(255,255,255,0.1); }
+.targets button { display: block; width: 100%; margin: 5px 0; padding: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+.targets button.selected { background: #28a745; color: white; border-color: #28a745; }
 
-/* action/vote targets */
-.targets { display:flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.targetBtn { padding: 6px 8px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 14px; }
-.targetBtn.selected { background: #4caf50; color: white; border-color: transparent; transform: translateY(-1px); }
-.primary { background: #1976d2; color: white; border: none; padding: 6px 10px; margin-top: 6px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-.primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.log { list-style: none; max-height: 200px; overflow-y: auto; font-size: 13px; }
+.log li { margin-bottom: 5px; border-bottom: 1px solid rgba(0,0,0,0.1); }
 
-/* LOG */
-.log { list-style: none; max-height: 150px; overflow-y: auto; padding-right: 6px; font-size: 13px; }
-.log li { margin-bottom: 4px; color: #444; }
+/* MODAL */
+#roleModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+.modalContent { background: white; padding: 20px; border-radius: 10px; text-align: center; }
+.modalContent img { width: 120px; height: 180px; margin: 15px 0; }
 
-/* EXIT BUTTON */
-.exitBtn { padding: 8px 16px; border: none; border-radius: 5px; background-color: #f44336; color: white; cursor: pointer; margin-top: 12px; font-size: 14px; }
-.exitBtn:hover { background-color: #d32f2f; }
-
-/* ROLE MODAL */
-#roleModal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; padding: 10px; }
-.modalContent { background: #fff; padding: 15px; border-radius: 10px; text-align: center; width: 95%; max-width: 300px; }
-.modalContent img { width: 90px; height: 130px; margin: 10px 0; object-fit: cover; }
-
-@media (max-width: 350px) {
-    .modalContent { width: 85%; }
-}
-
-.muted { font-size: 12px; color: #666; margin-top:4px; }
-
-/* RESPONSIVE */
-@media (max-width: 900px) {
+@media (max-width: 700px) {
     .gameContainer { grid-template-columns: 1fr; }
-    .rightPanel { order: 2; }
-}
-
-@media (max-width: 500px) {
-    .playerCard img { width: 70px; height: 100px; }
-    .topBar { flex-direction: column; align-items: flex-start; }
-    #hostControls button { font-size: 12px; padding: 5px 8px; }
-    .phaseBanner { font-size: 12px; padding: 4px 6px; }
-}
-
-@media (max-width: 400px) {
-    .playerCard img { width: 60px; height: 85px; }
-    .modalContent { width: 90%; max-width: 260px; padding: 12px; }
-    .targetBtn { font-size: 12px; padding: 4px 6px; }
-    .primary { font-size: 12px; padding: 4px 6px; }
-    .log { font-size: 11px; max-height: 120px; }
-    .exitBtn { font-size: 12px; padding: 6px 12px; }
 }
