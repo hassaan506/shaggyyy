@@ -1,69 +1,79 @@
 /* ---------------------------------------------
-    GENERAL STYLES
+    GENERAL & RESET
 --------------------------------------------- */
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
-body.day { background-color: #e0e0e0; color: #000; transition: .3s; }
-body.night { background-color: #1a1a24; color: #fff; transition: .3s; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body.day { background-color: #e4e4e4; color: #222; }
+body.night { background-color: #121212; color: #ddd; }
+button { touch-action: manipulation; } /* Fix mobile tap delay */
 
-.screen { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 10px; }
+.screen { width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 15px; }
 .hidden { display: none !important; }
 
-/* JOIN */
-.joinCard { background: #fff; padding: 30px; border-radius: 10px; text-align: center; margin-top: 50px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-.joinCard input { padding: 10px; margin: 10px 0; width: 200px; }
-.joinBtns button { padding: 10px; margin: 5px; cursor: pointer; }
+/* JOIN SCREEN */
+.joinCard { background: #fff; padding: 30px; border-radius: 12px; text-align: center; margin-top: 10vh; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 400px; }
+.joinCard input { padding: 12px; margin: 15px 0; width: 100%; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+.joinBtns { display: flex; gap: 10px; justify-content: center; }
+.joinBtns button { padding: 12px 20px; border: none; border-radius: 6px; background: #28a745; color: white; font-weight: bold; cursor: pointer; font-size: 16px; }
 
-/* TOPBAR */
-.topBar { width: 100%; max-width: 1200px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 8px; }
-#hostControls button { margin: 2px; padding: 5px 10px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
-#hostControls button:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.6; }
-#hostControls button:hover:not(:disabled) { background: #0056b3; }
+/* TOPBAR & HOST */
+.topBar { width: 100%; max-width: 1200px; margin-bottom: 20px; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; }
+body.night .topBar { background: rgba(30,30,30,0.9); color: #fff; }
+.btnGroup { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.btnGroup button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; font-size: 14px; }
+.btnGroup button:disabled { background: #888; opacity: 0.6; }
 
-/* CENTRAL DECK AREA */
-.tableArea { width: 100%; display: flex; justify-content: center; margin-bottom: 20px; min-height: 140px; }
-.deckWrapper { text-align: center; }
-.cardDeck { position: relative; width: 80px; height: 115px; margin: 0 auto; cursor: pointer; }
-.deckImg { width: 80px; height: 115px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); position: absolute; left: 0; top: 0; transition: transform 0.3s; }
-/* Stack effect */
-.layer1 { transform: translate(2px, -2px); z-index: -1; }
-.layer2 { transform: translate(4px, -4px); z-index: -2; }
+/* HOST LIVE FEED */
+.hostFeed { background: #222; color: #0f0; padding: 10px; border-radius: 6px; margin-top: 10px; font-family: monospace; max-height: 100px; overflow-y: auto; text-align: left; border: 1px solid #444; }
+.hostFeed h4 { margin-bottom: 5px; color: #fff; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+#liveVoteList { list-style: none; font-size: 12px; }
+#liveVoteList li { margin-bottom: 2px; }
 
-/* Animation class for shuffling */
-.shaking { animation: shake 0.5s infinite; }
+/* TABLE & DECK */
+.tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
+.cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
+.deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: absolute; top:0; left:0; transition: transform 0.2s; }
+.layer1 { transform: rotate(3deg); z-index: -1; }
+.layer2 { transform: rotate(-3deg); z-index: -2; }
+
+/* ANIMATION */
+.shaking { animation: shake 0.5s infinite linear; }
 @keyframes shake {
-  0% { transform: rotate(0deg); }
-  25% { transform: rotate(5deg); }
-  50% { transform: rotate(0deg); }
-  75% { transform: rotate(-5deg); }
+  0% { transform: rotate(0deg) translate(0,0); }
+  25% { transform: rotate(5deg) translate(2px, 0); }
+  50% { transform: rotate(0deg) translate(0, -2px); }
+  75% { transform: rotate(-5deg) translate(-2px, 0); }
   100% { transform: rotate(0deg); }
 }
 
-/* LAYOUT */
-.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
-.players { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 15px; }
+/* PLAYERS GRID */
+.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; }
+.playerCard { background: #fff; padding: 10px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; position: relative; }
+.playerCard:active { transform: scale(0.98); }
+.playerCard h3 { font-size: 14px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.playerCard img { width: 80px; height: 115px; border-radius: 4px; object-fit: cover; }
+.emptySlot { width: 80px; height: 115px; border: 2px dashed #aaa; border-radius: 4px; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #777; }
 
-/* PLAYER CARDS */
-.playerCard { background: rgba(255,255,255,0.8); border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-body.night .playerCard { background: rgba(255,255,255,0.1); }
-
-.playerCard img { width: 80px; height: 115px; border-radius: 5px; object-fit: cover; }
-.emptySlot { width: 80px; height: 115px; border: 2px dashed #999; border-radius: 5px; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #777; font-size: 12px; }
-
-/* RIGHT PANEL */
-.rightPanel { display: flex; flex-direction: column; gap: 10px; }
-.panel { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 8px; }
+/* PANELS */
+.rightPanel { display: flex; flex-direction: column; gap: 15px; }
+.panel { background: rgba(0,0,0,0.05); padding: 15px; border-radius: 8px; }
 body.night .panel { background: rgba(255,255,255,0.1); }
-.targets button { display: block; width: 100%; margin: 5px 0; padding: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+.targets { display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow-y: auto; }
+.targets button { padding: 10px; border: 1px solid #ccc; background: white; border-radius: 5px; cursor: pointer; text-align: left; }
 .targets button.selected { background: #28a745; color: white; border-color: #28a745; }
 
-.log { list-style: none; max-height: 200px; overflow-y: auto; font-size: 13px; }
-.log li { margin-bottom: 5px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+/* BUTTONS */
+.primary { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 10px; font-size: 16px; cursor: pointer; }
+.primary:disabled { background: #ccc; cursor: not-allowed; }
+.exitBtn { margin-top: 30px; padding: 10px 20px; background: #333; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
 
 /* MODAL */
-#roleModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
-.modalContent { background: white; padding: 20px; border-radius: 10px; text-align: center; }
-.modalContent img { width: 120px; height: 180px; margin: 15px 0; }
+#roleModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
+.modalContent { background: white; padding: 25px; border-radius: 12px; text-align: center; width: 80%; max-width: 320px; }
 
-@media (max-width: 700px) {
+/* RESPONSIVE */
+@media (max-width: 768px) {
     .gameContainer { grid-template-columns: 1fr; }
+    .rightPanel { order: -1; } /* Controls on top on mobile */
+    .topBar { font-size: 12px; }
 }
