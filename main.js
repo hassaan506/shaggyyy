@@ -24,6 +24,8 @@ const joinPlayerBtn = document.getElementById("joinPlayerBtn");
 
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
+const hostFeed = document.getElementById("hostFeed");
+const liveVoteList = document.getElementById("liveVoteList");
 
 // Controls
 const shuffleBtn = document.getElementById("shuffleBtn");
@@ -67,10 +69,7 @@ let mafiaSelections = [];
 joinHostBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
     if (!name) return alert("Please enter your name!");
-
     joinHostBtn.disabled = true;
-    joinHostBtn.innerText = "Creating...";
-
     try {
         await set(ref(db, "room/host"), { name });
         await set(ref(db, "room/deckDealt"), false); 
@@ -81,39 +80,27 @@ joinHostBtn.addEventListener('click', async () => {
         await remove(ref(db, "room/night"));
         await remove(ref(db, "room/publicReport"));
         await remove(ref(db, "room/winMessage"));
-
         localStorage.setItem("playerId", "HOST");
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "true");
         location.reload();
-    } catch (e) {
-        alert("Join Error: " + e.message);
-        joinHostBtn.disabled = false;
-    }
+    } catch (e) { alert("Join Error: " + e.message); joinHostBtn.disabled = false; }
 });
 
 joinPlayerBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
     if (!name) return alert("Please enter your name!");
-
     joinPlayerBtn.disabled = true;
-    joinPlayerBtn.innerText = "Connecting...";
-
     try {
         const roomSnap = await get(ref(db, "room/host"));
         if (!roomSnap.exists()) throw new Error("No Host found!");
-
         const refP = push(ref(db, "room/players"));
         await set(refP, { name, role: null, statusTags: "" });
-
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
         location.reload();
-    } catch (e) {
-        alert("Join Error: " + e.message);
-        joinPlayerBtn.disabled = false;
-    }
+    } catch (e) { alert("Join Error: " + e.message); joinPlayerBtn.disabled = false; }
 });
 
 // --------------------------------------------------
@@ -170,29 +157,42 @@ dealBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS - NIGHT PHASE
+// 3. HOST CONTROLS & MONITOR
 // --------------------------------------------------
+// FIXED: LIVE VOTE MONITOR
+onValue(ref(db, "room/votes"), (snap) => {
+    if (localStorage.getItem("isHost") !== "true") return;
+    const votes = snap.val() || {};
+    liveVoteList.innerHTML = "";
+    if (Object.keys(votes).length === 0) {
+        liveVoteList.innerHTML = "<li>No votes yet...</li>";
+        return;
+    }
+    Object.entries(votes).forEach(([voterId, targetId]) => {
+        const li = document.createElement("li");
+        li.innerText = `${getName(voterId)} ➝ ${getName(targetId)}`;
+        liveVoteList.appendChild(li);
+    });
+});
+
 nightBtn.addEventListener('click', () => {
     set(ref(db, "room/gamePhase"), "night");
     remove(ref(db, "room/night")); 
     remove(ref(db, "room/pendingResults"));
 });
 
-// --------------------------------------------------
-// 4. HOST CONTROLS - DAY PHASE (CALCULATIONS)
-// --------------------------------------------------
 dayBtn.addEventListener('click', async () => {
     const nightSnap = await get(ref(db, "room/night"));
     const night = nightSnap.val() || {};
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val();
     
-    // 1. Calculate Alive Mafia Count
+    // Alive Mafia Count (Votes Required)
     const aliveMafiaCount = Object.values(players).filter(p => 
         (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
     ).length;
 
-    // 2. Tally Votes
+    // Vote Tally
     const mafiaVotesRaw = night.mafiaVotes || {};
     let voteCounts = {};
     let grandmaVotes = 0;
@@ -208,7 +208,6 @@ dayBtn.addEventListener('click', async () => {
         });
     });
 
-    // 3. Determine Victim (Majority & Consensus Rule)
     let maxVotes = 0;
     let potentialVictims = [];
     for (const [pid, count] of Object.entries(voteCounts)) {
@@ -219,7 +218,7 @@ dayBtn.addEventListener('click', async () => {
     let victimId = null;
     let nightDeathReason = "Killed by Mafia";
 
-    // CONSENSUS CHECK: If >1 Mafia, must have 2+ votes on target
+    // CONSENSUS RULE: If >1 Mafia alive, need 2+ votes to kill.
     if (aliveMafiaCount > 1 && maxVotes < 2) {
         victimId = null;
         nightDeathReason = "Mafia failed to agree (No consensus)";
@@ -228,11 +227,9 @@ dayBtn.addEventListener('click', async () => {
         victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
     }
 
-    // 4. Special Roles Logic
+    // Special Logic
     let finalNightDeathId = victimId;
-
     if (finalNightDeathId) {
-        // Grandma Override
         if (grandmaVotes >= 2) {
             const grandmaEntry = Object.entries(players).find(([k,v]) => v.role === "grandma");
             if(grandmaEntry) {
@@ -248,7 +245,6 @@ dayBtn.addEventListener('click', async () => {
     // Doctor Save
     let wasSaved = false;
     let savedName = "Unknown";
-    
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
         wasSaved = true;
         savedName = getName(finalNightDeathId);
@@ -256,17 +252,13 @@ dayBtn.addEventListener('click', async () => {
         nightDeathReason = "Saved by Doctor";
     }
 
-    // 5. Host Alert
+    // Host Alert
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
-    if (finalNightDeathId) {
-        alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
-    } else if (wasSaved) {
-        alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
-    } else if (!victimId && aliveMafiaCount > 1 && maxVotes < 2) {
-        alertMsg += `🛡️ NO KILL. Mafia voted for different people and failed to agree.`;
-    } else {
-        alertMsg += `🛡️ No one died.`;
-    }
+    if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
+    else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
+    else if (!victimId && aliveMafiaCount > 1 && maxVotes < 2) alertMsg += `🛡️ NO KILL. Mafia voted for different people.`;
+    else alertMsg += `🛡️ No one died.`;
+    
     alert(alertMsg);
 
     await remove(ref(db, "room/night/chat"));
@@ -327,20 +319,15 @@ async function pushTag(pid, tag) {
 }
 
 // --------------------------------------------------
-// 5. MAFIA CHAT
+// 4. MAFIA CHAT
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
     if (!text) return;
-    
     const myName = localStorage.getItem("name");
     const pid = localStorage.getItem("playerId");
-
     await push(ref(db, "room/night/chat"), {
-        sender: myName,
-        senderId: pid,
-        text: text,
-        timestamp: Date.now()
+        sender: myName, senderId: pid, text: text
     });
     chatInput.value = "";
 });
@@ -361,7 +348,7 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 // --------------------------------------------------
-// 6. ACTIONS & GAME LOOP
+// 5. ACTIONS & GAME LOOP
 // --------------------------------------------------
 submitActionBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
@@ -374,6 +361,7 @@ submitActionBtn.addEventListener('click', async () => {
             (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
         ).length;
 
+        // FIXED: 1 Mafia = 1 Vote, 2+ Mafia = 2 Votes
         const requiredVotes = aliveMafiaCount === 1 ? 1 : 2;
         if (mafiaSelections.length !== requiredVotes) {
             return alert(`There are ${aliveMafiaCount} Mafia alive.\nYou must select exactly ${requiredVotes} victim(s).`);
@@ -406,6 +394,7 @@ submitVoteBtn.addEventListener('click', async () => {
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
     await set(ref(db, `room/votes/${pid}`), target);
+    // UI update handled in listener loop
 });
 
 onValue(ref(db, "room/publicReport"), (snap) => {
@@ -445,6 +434,7 @@ onValue(ref(db, "room"), (snap) => {
     if(isHost) {
         hostControls.classList.remove("hidden");
         endDayBtn.classList.toggle("hidden", phase !== "day");
+        hostFeed.classList.remove("hidden"); // Ensure Live Monitor is shown
     }
 
     const isDealt = data.deckDealt === true;
@@ -473,8 +463,8 @@ onValue(ref(db, "room"), (snap) => {
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
         const hasVoted = data.votes && data.votes[myId];
 
-        // Chat Visibility
-        if (phase === "night" && amIMafia && !amDead) mafiaChat.classList.remove("hidden");
+        // Chat Visibility: Night AND Mafia. Dead Mafia CAN chat.
+        if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
         else mafiaChat.classList.add("hidden");
 
         Object.entries(data.players).forEach(([pid, p]) => {
@@ -504,13 +494,12 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
+            // BUTTON LOGIC
             if (me && !amDead) { 
                 if (phase === "night") {
                     let canTarget = false;
-                    
-                    // --- FIX: NO SELF TARGET FOR MAFIA ---
+                    // Mafia cannot target self, but can target other mafia
                     if (amIMafia && !isMe) canTarget = true;
-                    
                     else if (myCurrentRole === "doctor") canTarget = true;
                     else if (myCurrentRole === "detective" && !isMe) canTarget = true;
 
@@ -569,18 +558,15 @@ function createBtn(container, name, pid, btn, datasetKey) {
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
 
-// --- WIN CONDITION LOGIC (TOWN = GRANDMA + CIVS) ---
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
     const p = Object.values(snap.val());
     
-    const activePlayers = p.filter(x => !x.statusTags); // Alive players
+    const activePlayers = p.filter(x => !x.statusTags);
 
-    // TEAM 1: MAFIA + GODFATHER
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    
-    // TEAM 2: GRANDMA + CIVILIANS (Doc and Detective excluded)
+    // TEAM TOWN: Civilians + Grandma
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
     if (mafiaCount === 0 && activePlayers.length > 0) {
