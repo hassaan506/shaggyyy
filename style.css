@@ -132,3 +132,90 @@ body.night .panel { background: rgba(255,255,255,0.1); }
     margin-bottom: 20px;
     text-transform: uppercase;
 }
+
+/* MAFIA CHATBOX */
+#mafiaChat {
+    position: fixed;
+    bottom: 20px; left: 20px;
+    width: 260px; height: 300px;
+    background: #1a1a1a;
+    border: 2px solid #d32f2f; /* Blood Red Border */
+    border-radius: 8px;
+    display: flex; flex-direction: column;
+    z-index: 1500;
+    box-shadow: 0 0 15px rgba(0,0,0,0.8);
+    font-family: sans-serif;
+}
+#mafiaChat.hidden { display: none !important; }
+
+.chatHeader {
+    background: #d32f2f;
+    color: white;
+    padding: 8px;
+    font-weight: bold;
+    font-size: 13px;
+    text-align: center;
+    letter-spacing: 1px;
+}
+
+#chatHistory {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #222;
+}
+
+.chatMsg {
+    padding: 6px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    max-width: 85%;
+    word-wrap: break-word;
+    color: #eee;
+}
+.chatMsg.me {
+    align-self: flex-end;
+    background: #d32f2f;
+}
+.chatMsg.them {
+    align-self: flex-start;
+    background: #444;
+}
+.chatMsg b { display: block; font-size: 9px; opacity: 0.7; margin-bottom: 2px; }
+
+.chatInputWrapper {
+    display: flex;
+    border-top: 1px solid #444;
+    padding: 5px;
+    background: #1a1a1a;
+}
+#chatInput {
+    flex: 1;
+    background: #333;
+    border: none;
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    outline: none;
+}
+#sendChatBtn {
+    background: none;
+    border: none;
+    color: #d32f2f;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+/* Adjust for Mobile */
+@media (max-width: 600px) {
+    #mafiaChat {
+        width: 200px;
+        height: 220px;
+        bottom: 70px; /* Move up to avoid overlapping bottom buttons */
+        left: 10px;
+    }
+}
