@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
 // --- CONFIGURATION ---
-// PASTE YOUR OWN CONFIG HERE
+// PASTE YOUR OWN FIREBASE CONFIG HERE
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -209,8 +209,6 @@ dayBtn.addEventListener('click', async () => {
     });
 
     // 3. Determine Victim (Majority & Consensus Rule)
-    
-    
     let maxVotes = 0;
     let potentialVictims = [];
     for (const [pid, count] of Object.entries(voteCounts)) {
@@ -221,15 +219,12 @@ dayBtn.addEventListener('click', async () => {
     let victimId = null;
     let nightDeathReason = "Killed by Mafia";
 
-    // --- NEW: CONSENSUS CHECK ---
-    // If there is more than 1 Mafia, and the max votes is only 1, 
-    // it means they all picked different people. NO KILL.
+    // CONSENSUS CHECK: If >1 Mafia, must have 2+ votes on target
     if (aliveMafiaCount > 1 && maxVotes < 2) {
         victimId = null;
         nightDeathReason = "Mafia failed to agree (No consensus)";
     } 
     else if (potentialVictims.length > 0) {
-        // Tie-breaker or clear winner
         victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
     }
 
@@ -512,7 +507,10 @@ onValue(ref(db, "room"), (snap) => {
             if (me && !amDead) { 
                 if (phase === "night") {
                     let canTarget = false;
-                    if (amIMafia) canTarget = true;
+                    
+                    // --- FIX: NO SELF TARGET FOR MAFIA ---
+                    if (amIMafia && !isMe) canTarget = true;
+                    
                     else if (myCurrentRole === "doctor") canTarget = true;
                     else if (myCurrentRole === "detective" && !isMe) canTarget = true;
 
@@ -571,20 +569,25 @@ function createBtn(container, name, pid, btn, datasetKey) {
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
 
+// --- WIN CONDITION LOGIC (TOWN = GRANDMA + CIVS) ---
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
     const p = Object.values(snap.val());
     
-    const alive = p.filter(x => !x.statusTags);
-    const mafiaCount = alive.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    const civCount = alive.length - mafiaCount;
+    const activePlayers = p.filter(x => !x.statusTags); // Alive players
 
-    if (mafiaCount === 0 && alive.length > 0) {
+    // TEAM 1: MAFIA + GODFATHER
+    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
+    
+    // TEAM 2: GRANDMA + CIVILIANS (Doc and Detective excluded)
+    const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
+
+    if (mafiaCount === 0 && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     } 
-    else if (mafiaCount >= civCount && alive.length > 0) {
+    else if (mafiaCount >= townCount && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     }
