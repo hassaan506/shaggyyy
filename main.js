@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
 // --- CONFIGURATION ---
-// PASTE YOUR OWN FIREBASE CONFIG HERE
+// PASTE YOUR OWN CONFIG HERE
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -159,7 +159,6 @@ dealBtn.addEventListener('click', async () => {
 // --------------------------------------------------
 // 3. HOST CONTROLS & MONITOR
 // --------------------------------------------------
-// FIXED: LIVE VOTE MONITOR
 onValue(ref(db, "room/votes"), (snap) => {
     if (localStorage.getItem("isHost") !== "true") return;
     const votes = snap.val() || {};
@@ -187,7 +186,7 @@ dayBtn.addEventListener('click', async () => {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val();
     
-    // Alive Mafia Count (Votes Required)
+    // Alive Mafia Count
     const aliveMafiaCount = Object.values(players).filter(p => 
         (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
     ).length;
@@ -218,27 +217,33 @@ dayBtn.addEventListener('click', async () => {
     let victimId = null;
     let nightDeathReason = "Killed by Mafia";
 
-    // CONSENSUS RULE: If >1 Mafia alive, need 2+ votes to kill.
-    if (aliveMafiaCount > 1 && maxVotes < 2) {
-        victimId = null;
-        nightDeathReason = "Mafia failed to agree (No consensus)";
-    } 
-    else if (potentialVictims.length > 0) {
-        victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
-    }
+    // --- PRIORITY LOGIC ---
+    let finalNightDeathId = null;
 
-    // Special Logic
-    let finalNightDeathId = victimId;
-    if (finalNightDeathId) {
-        if (grandmaVotes >= 2) {
-            const grandmaEntry = Object.entries(players).find(([k,v]) => v.role === "grandma");
-            if(grandmaEntry) {
-                finalNightDeathId = grandmaEntry[0];
-                nightDeathReason = "Killed by Mafia (Grandma Overwhelmed)";
-            }
-        } else if (grandmaVotes === 1 && grandmaAttacker) {
-            finalNightDeathId = grandmaAttacker;
-            nightDeathReason = "Shot by Grandma (Revenge)";
+    // 1. GRANDMA CHECK (Highest Priority)
+    if (grandmaVotes >= 2) {
+        // Overwhelmed
+        const grandmaEntry = Object.entries(players).find(([k,v]) => v.role === "grandma");
+        if(grandmaEntry) {
+            finalNightDeathId = grandmaEntry[0];
+            nightDeathReason = "Killed by Mafia (Grandma Overwhelmed)";
+        }
+    } 
+    else if (grandmaVotes === 1 && grandmaAttacker) {
+        // Revenge Kill - happens even if consensus fails!
+        finalNightDeathId = grandmaAttacker;
+        nightDeathReason = "Shot by Grandma (Revenge)";
+    }
+    // 2. NORMAL KILL (Only if Grandma didn't trigger)
+    else {
+        // Consensus Check: If >1 Mafia alive, need 2+ votes
+        if (aliveMafiaCount > 1 && maxVotes < 2) {
+            victimId = null;
+            nightDeathReason = "Mafia failed to agree (No consensus)";
+        } 
+        else if (potentialVictims.length > 0) {
+            victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
+            finalNightDeathId = victimId;
         }
     }
 
@@ -256,7 +261,7 @@ dayBtn.addEventListener('click', async () => {
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
     if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
     else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
-    else if (!victimId && aliveMafiaCount > 1 && maxVotes < 2) alertMsg += `🛡️ NO KILL. Mafia voted for different people.`;
+    else if (!victimId && aliveMafiaCount > 1 && maxVotes < 2 && grandmaVotes === 0) alertMsg += `🛡️ NO KILL. Mafia voted for different people.`;
     else alertMsg += `🛡️ No one died.`;
     
     alert(alertMsg);
@@ -361,7 +366,6 @@ submitActionBtn.addEventListener('click', async () => {
             (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
         ).length;
 
-        // FIXED: 1 Mafia = 1 Vote, 2+ Mafia = 2 Votes
         const requiredVotes = aliveMafiaCount === 1 ? 1 : 2;
         if (mafiaSelections.length !== requiredVotes) {
             return alert(`There are ${aliveMafiaCount} Mafia alive.\nYou must select exactly ${requiredVotes} victim(s).`);
@@ -394,7 +398,6 @@ submitVoteBtn.addEventListener('click', async () => {
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
     await set(ref(db, `room/votes/${pid}`), target);
-    // UI update handled in listener loop
 });
 
 onValue(ref(db, "room/publicReport"), (snap) => {
@@ -434,7 +437,7 @@ onValue(ref(db, "room"), (snap) => {
     if(isHost) {
         hostControls.classList.remove("hidden");
         endDayBtn.classList.toggle("hidden", phase !== "day");
-        hostFeed.classList.remove("hidden"); // Ensure Live Monitor is shown
+        hostFeed.classList.remove("hidden");
     }
 
     const isDealt = data.deckDealt === true;
@@ -463,7 +466,7 @@ onValue(ref(db, "room"), (snap) => {
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
         const hasVoted = data.votes && data.votes[myId];
 
-        // Chat Visibility: Night AND Mafia. Dead Mafia CAN chat.
+        // Chat Visibility: Night + Mafia (Even if dead)
         if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
         else mafiaChat.classList.add("hidden");
 
@@ -494,12 +497,11 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
-            // BUTTON LOGIC
             if (me && !amDead) { 
                 if (phase === "night") {
                     let canTarget = false;
-                    // Mafia cannot target self, but can target other mafia
-                    if (amIMafia && !isMe) canTarget = true;
+                    // FIX: Mafia cannot target other Mafia
+                    if (amIMafia && !targetIsMafia && !isMe) canTarget = true;
                     else if (myCurrentRole === "doctor") canTarget = true;
                     else if (myCurrentRole === "detective" && !isMe) canTarget = true;
 
@@ -566,14 +568,15 @@ async function checkWinCondition() {
     const activePlayers = p.filter(x => !x.statusTags);
 
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    // TEAM TOWN: Civilians + Grandma
+    // Town Team: Only Civs and Grandma
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
     if (mafiaCount === 0 && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     } 
-    else if (mafiaCount >= townCount && activePlayers.length > 0) {
+    // FIX: Mafia Win only if STRICTLY GREATER
+    else if (mafiaCount > townCount && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     }
