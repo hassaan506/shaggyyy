@@ -21,24 +21,27 @@ const joinHostBtn = document.getElementById("joinHostBtn");
 const joinPlayerBtn = document.getElementById("joinPlayerBtn");
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
-const hostFeed = document.getElementById("hostFeed");
-const liveVoteList = document.getElementById("liveVoteList");
 
 // Controls
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
-const resetBtn = document.getElementById("resetBtn");
+const resetBtn = document.getElementById("resetBtn"); // Top bar reset
 const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
 const endDayBtn = document.getElementById("endVoteBtn");
 const exitBtn = document.getElementById("exitBtn");
 
-// Panels
+// Panels & Modals
 const centralDeck = document.getElementById("centralDeck");
 const deckStatus = document.getElementById("deckStatus");
 const roleModal = document.getElementById("roleModal");
+const gameOverModal = document.getElementById("gameOverModal");
 const actionPanel = document.getElementById("actionPanel");
 const votingPanel = document.getElementById("votingPanel");
+
+// Game Over Modal Buttons
+const modalResetBtn = document.getElementById("modalResetBtn");
+const modalExitBtn = document.getElementById("modalExitBtn");
 
 // Action Buttons
 const submitActionBtn = document.getElementById("submitActionBtn");
@@ -104,7 +107,7 @@ dealBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// HOST CONTROLS - NIGHT PROCESSING
+// HOST CONTROLS - NIGHT
 // --------------------------------------------------
 nightBtn.addEventListener('click', () => {
     set(ref(db, "room/gamePhase"), "night");
@@ -112,6 +115,9 @@ nightBtn.addEventListener('click', () => {
     remove(ref(db, "room/pendingResults"));
 });
 
+// --------------------------------------------------
+// HOST CONTROLS - DAY (CALCULATE)
+// --------------------------------------------------
 dayBtn.addEventListener('click', async () => {
     const nightSnap = await get(ref(db, "room/night"));
     const night = nightSnap.val() || {};
@@ -134,7 +140,7 @@ dayBtn.addEventListener('click', async () => {
         });
     });
 
-    // 2. Determine Victim (Tie-Breaker Logic)
+    // 2. Determine Victim (Random Tie Break)
     let maxVotes = 0;
     let potentialVictims = [];
     for (const [pid, count] of Object.entries(voteCounts)) {
@@ -147,7 +153,7 @@ dayBtn.addEventListener('click', async () => {
         victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
     }
 
-    // 3. Logic: Who is actually dying?
+    // 3. Logic Application
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
@@ -162,18 +168,18 @@ dayBtn.addEventListener('click', async () => {
         nightDeathReason = "Shot by Grandma (Revenge)";
     }
 
-    // 4. Doctor Save Logic (Updated for Host Alert)
+    // Doctor Save
     let wasSaved = false;
     let savedName = "Unknown";
     
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
         wasSaved = true;
         savedName = getName(finalNightDeathId);
-        finalNightDeathId = null; // CANCEL DEATH
+        finalNightDeathId = null; 
         nightDeathReason = "Saved by Doctor";
     }
 
-    // 5. Alert Host
+    // Alert Host
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
     if (finalNightDeathId) {
         alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
@@ -190,7 +196,7 @@ dayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// END DAY & REVEAL
+// HOST CONTROLS - REVEAL & END DAY
 // --------------------------------------------------
 endDayBtn.innerText = "Reveal & End Day";
 endDayBtn.addEventListener('click', async () => {
@@ -250,7 +256,6 @@ submitActionBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
 
-    // SCALED MAFIA VOTING
     if (role === "mafia" || role === "godfather") {
         const snap = await get(ref(db, "room/players"));
         const players = snap.val();
@@ -292,7 +297,6 @@ submitVoteBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
-    
     await set(ref(db, `room/votes/${pid}`), target);
 });
 
@@ -306,28 +310,56 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
-    if (!data) return;
+
+    // --- KICK LOGIC ---
+    // If room is null, Host deleted it. Kick everyone.
+    if (!data) {
+        if (localStorage.getItem("playerId")) {
+            localStorage.clear();
+            alert("The Host has ended the game.");
+            location.reload();
+        }
+        return;
+    }
 
     allPlayersCache = data.players || {};
     const isHost = localStorage.getItem("isHost") === "true";
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
+    // --- GAME OVER MODAL LOGIC ---
     if (phase === "GAME OVER") {
-        document.getElementById("phaseText").innerText = "GAME OVER";
-        actionPanel.classList.add("hidden");
-        votingPanel.classList.add("hidden");
-        if (isHost) hostControls.classList.remove("hidden");
-        return; 
+        gameOverModal.classList.remove("hidden");
+        document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
+        
+        // Host Reset Button
+        if (isHost) {
+            modalResetBtn.classList.remove("hidden");
+            modalResetBtn.onclick = async () => {
+                if (confirm("Kick everyone and restart?")) {
+                    await remove(ref(db, "room")); // This triggers 'if (!data)' above for everyone
+                }
+            };
+        }
+        
+        // Player Exit Button
+        modalExitBtn.onclick = () => {
+            localStorage.clear();
+            location.reload();
+        };
+
+        return; // Stop rendering the rest of the game
+    } else {
+        gameOverModal.classList.add("hidden");
     }
 
+    // Normal Game Loop UI
     if(isHost) {
         hostControls.classList.remove("hidden");
         endDayBtn.classList.toggle("hidden", phase !== "day");
     }
 
     const isDealt = data.deckDealt === true;
-    const centralDeck = document.getElementById("centralDeck");
     if (isDealt) {
         centralDeck.classList.add("hidden");
         if(isHost) { shuffleBtn.disabled = true; dealBtn.disabled = true; }
@@ -449,6 +481,7 @@ function createBtn(container, name, pid, btn, datasetKey) {
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
 
+// Logic: Check Win and Save Message to DB (to trigger Modal)
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
@@ -459,37 +492,16 @@ async function checkWinCondition() {
     const civCount = activePlayers.length - mafiaCount;
 
     if (mafiaCount === 0 && activePlayers.length > 0) {
-        alert("CIVILIANS WIN!");
+        await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     } 
     else if (mafiaCount >= civCount && activePlayers.length > 0) {
-        alert("MAFIA WINS!");
+        await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     }
 }
 
-joinHostBtn.addEventListener('click', async () => {
-    const name = playerNameInput.value.trim();
-    if (!name) return;
-    await set(ref(db, "room/host"), { name });
-    await set(ref(db, "room/deckDealt"), false); 
-    localStorage.setItem("playerId", "HOST");
-    localStorage.setItem("name", name);
-    localStorage.setItem("isHost", "true");
-    location.reload();
-});
-
-joinPlayerBtn.addEventListener('click', async () => {
-    const name = playerNameInput.value.trim();
-    if (!name) return;
-    const refP = push(ref(db, "room/players"));
-    await set(refP, { name, role: null, statusTags: "" });
-    localStorage.setItem("playerId", refP.key);
-    localStorage.setItem("name", name);
-    localStorage.setItem("isHost", "false");
-    location.reload();
-});
-
+// Reset Logic for Top Bar Button (Same logic as Modal)
 resetBtn.addEventListener('click', async () => {
     if (confirm("Reset Game? This will kick all players.")) {
         await remove(ref(db, "room"));
