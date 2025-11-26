@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
 // --- CONFIGURATION ---
-// PASTE YOUR OWN FIREBASE CONFIG HERE
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -103,7 +102,7 @@ joinPlayerBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. SHUFFLE & DEAL (With Grandma Restriction)
+// 2. SHUFFLE & DEAL
 // --------------------------------------------------
 shuffleBtn.addEventListener('click', async () => {
     await set(ref(db, "room/isShuffling"), true);
@@ -138,10 +137,7 @@ dealBtn.addEventListener('click', async () => {
     roles.push("doctor");
     roles.push("detective");
     
-    // RULE: Grandma only if > 5 players (So 6 or more)
-    if (count > 5) {
-        roles.push("grandma");
-    }
+    if (count > 5) roles.push("grandma");
 
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
@@ -160,7 +156,7 @@ dealBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS & MONITOR
+// 3. HOST CONTROLS
 // --------------------------------------------------
 onValue(ref(db, "room/votes"), (snap) => {
     if (localStorage.getItem("isHost") !== "true") return;
@@ -210,7 +206,6 @@ dayBtn.addEventListener('click', async () => {
         else if (count === maxVotes) { potentialVictims.push(pid); }
     }
     
-    // Pick highest voted target
     let victimId = null;
     if (potentialVictims.length > 0) {
         victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
@@ -219,40 +214,29 @@ dayBtn.addEventListener('click', async () => {
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
-    // --- GRANDMA IMMUNITY & RICOCHET LOGIC ---
-    // If target is Grandma (implied by grandmaVotes > 0)
+    // Grandma Logic
     if (grandmaVotes > 0) {
-        // Grandma is IMMUNE to night kills. She never dies here.
-        
         if (grandmaVotes >= 2) {
-            // 2+ Votes: Random Mafia Dies
             const badGuys = Object.entries(players).filter(([pid, p]) => 
                 (p.role === "mafia" || p.role === "godfather") && !p.statusTags
             );
-            
             if (badGuys.length > 0) {
                 const [randomBadGuyId, bgData] = badGuys[Math.floor(Math.random() * badGuys.length)];
                 finalNightDeathId = randomBadGuyId;
                 nightDeathReason = "Grandma Ricochet (2+ Votes -> Random Mafia Died)";
             } else {
-                finalNightDeathId = null; // Should not happen
+                finalNightDeathId = null; 
             }
         } 
         else if (grandmaVotes === 1 && grandmaAttacker) {
-            // 1 Vote: Attacker Dies
             finalNightDeathId = grandmaAttacker;
             nightDeathReason = "Grandma Revenge (1 Vote -> Attacker Died)";
         }
     }
 
-    // Doctor Save (Standard)
-    // Note: If Grandma logic already picked a Mafia to die, Doctor cannot save the Mafia 
-    // because Doctor usually selects a "Target ID" to save. 
-    // If Doctor selected the Mafia member by coincidence, they save them.
-    // If Doctor selected Grandma, they wasted their save (Grandma was safe anyway).
+    // Doctor Save
     let wasSaved = false;
     let savedName = "Unknown";
-    
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
         wasSaved = true;
         savedName = getName(finalNightDeathId);
@@ -361,11 +345,11 @@ submitActionBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
 
-    // MAFIA LOGIC: 1 Vote Only, No Family Fire
+    // MAFIA ACTION
     if (role === "mafia" || role === "godfather") {
         const target = submitActionBtn.dataset.target;
         if(!target) return alert("Select a target first!");
-
+        
         await set(ref(db, `room/night/mafiaVotes/${pid}`), target);
         
         submitActionBtn.innerText = "Vote Submitted";
@@ -374,7 +358,7 @@ submitActionBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Standard Actions
+    // OTHER ACTIONS
     const target = submitActionBtn.dataset.target;
     if(!target) return alert("Select a target first!");
 
@@ -382,6 +366,9 @@ submitActionBtn.addEventListener('click', async () => {
     else if (role === "detective") {
         const tSnap = await get(ref(db, `room/players/${target}/role`));
         const tRole = tSnap.val();
+        // Record action to DB so we know they voted (using a simple flag)
+        await set(ref(db, `room/night/detectiveAction/${pid}`), true);
+        
         const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
         alert(`Investigation Result:\n${getName(target)} is ${isBad}`);
     }
@@ -403,6 +390,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
     if (msg) alert(msg);
 });
 
+// --- MAIN GAME LOOP WITH FIXES ---
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
     if (!data) {
@@ -418,6 +406,7 @@ onValue(ref(db, "room"), (snap) => {
     const isHost = localStorage.getItem("isHost") === "true";
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
+    const nightData = data.night || {}; // Get night data for checks
     
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
@@ -462,9 +451,9 @@ onValue(ref(db, "room"), (snap) => {
         myCurrentRole = me ? me.role : null;
         const amDead = me && me.statusTags && me.statusTags.length > 0;
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
-        const hasVoted = data.votes && data.votes[myId];
+        const hasVotedDay = data.votes && data.votes[myId];
 
-        // Chat Visibility: Night + Mafia (Even if dead)
+        // Chat Visibility
         if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
         else mafiaChat.classList.add("hidden");
 
@@ -495,21 +484,38 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
+            // BUTTON LOGIC
             if (me && !amDead) { 
                 if (phase === "night") {
-                    let canTarget = false;
-                    // FIX: Mafia cannot target other Mafia
-                    if (amIMafia && !targetIsMafia && !isMe) canTarget = true;
-                    else if (myCurrentRole === "doctor") canTarget = true;
-                    else if (myCurrentRole === "detective" && !isMe) canTarget = true;
+                    // --- FIX: CHECK IF ALREADY VOTED TONIGHT ---
+                    let alreadyVotedTonight = false;
+                    if (amIMafia && nightData.mafiaVotes && nightData.mafiaVotes[myId]) alreadyVotedTonight = true;
+                    if (myCurrentRole === "doctor" && nightData.doctorSave) alreadyVotedTonight = true;
+                    if (myCurrentRole === "detective" && nightData.detectiveAction && nightData.detectiveAction[myId]) alreadyVotedTonight = true;
 
-                    if (canTarget) {
-                        createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
+                    if (alreadyVotedTonight) {
                         actionPanel.classList.remove("hidden");
+                        actionPanel.innerHTML = "<h3>Night Action</h3><p>Action Submitted. Waiting for others...</p>";
+                    } else {
+                        // Reset Panel HTML if it was overwritten
+                        if (actionPanel.innerHTML.includes("Action Submitted")) {
+                             actionPanel.innerHTML = `<h3>Night Action</h3><p id="actionInstruction">Select a target...</p><div id="actionTargets" class="targets"></div><button id="submitActionBtn" class="primary" disabled>Submit Action</button>`;
+                        }
+
+                        let canTarget = false;
+                        if (amIMafia && !targetIsMafia && !isMe) canTarget = true;
+                        else if (myCurrentRole === "doctor") canTarget = true;
+                        else if (myCurrentRole === "detective" && !isMe) canTarget = true;
+
+                        if (canTarget) {
+                            createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
+                            actionPanel.classList.remove("hidden");
+                        }
                     }
                 }
+                
                 if (phase === "day" && !isMe) {
-                    if (hasVoted) {
+                    if (hasVotedDay) {
                         votingPanel.classList.remove("hidden");
                         votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
                     } else {
@@ -555,7 +561,6 @@ async function checkWinCondition() {
     const activePlayers = p.filter(x => !x.statusTags);
 
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    // Town Team: Civilians + Grandma (Doc/Detective don't count for ratio)
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
     if (mafiaCount === 0 && activePlayers.length > 0) {
