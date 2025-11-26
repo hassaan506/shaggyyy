@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
 // --- CONFIGURATION ---
-// PASTE YOUR OWN CONFIG HERE
+// PASTE YOUR OWN FIREBASE CONFIG HERE
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -61,7 +61,6 @@ const voteTargets = document.getElementById("voteTargets");
 // State
 let allPlayersCache = {}; 
 let myCurrentRole = null;
-let mafiaSelections = []; 
 
 // --------------------------------------------------
 // 1. JOIN LOGIC
@@ -104,7 +103,7 @@ joinPlayerBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. SHUFFLE & DEAL
+// 2. SHUFFLE & DEAL (With Grandma Restriction)
 // --------------------------------------------------
 shuffleBtn.addEventListener('click', async () => {
     await set(ref(db, "room/isShuffling"), true);
@@ -138,7 +137,11 @@ dealBtn.addEventListener('click', async () => {
 
     roles.push("doctor");
     roles.push("detective");
-    roles.push("grandma");
+    
+    // RULE: Grandma only if > 5 players (So 6 or more)
+    if (count > 5) {
+        roles.push("grandma");
+    }
 
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
@@ -186,25 +189,18 @@ dayBtn.addEventListener('click', async () => {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val();
     
-    // Alive Mafia Count
-    const aliveMafiaCount = Object.values(players).filter(p => 
-        (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
-    ).length;
-
     // Vote Tally
     const mafiaVotesRaw = night.mafiaVotes || {};
     let voteCounts = {};
     let grandmaVotes = 0;
     let grandmaAttacker = null;
 
-    Object.entries(mafiaVotesRaw).forEach(([attackerId, targets]) => {
-        targets.forEach(tid => {
-            voteCounts[tid] = (voteCounts[tid] || 0) + 1;
-            if (players[tid].role === "grandma") {
-                grandmaVotes++;
-                grandmaAttacker = attackerId;
-            }
-        });
+    Object.entries(mafiaVotesRaw).forEach(([attackerId, targetId]) => {
+        voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+        if (players[targetId].role === "grandma") {
+            grandmaVotes++;
+            grandmaAttacker = attackerId;
+        }
     });
 
     let maxVotes = 0;
@@ -214,42 +210,49 @@ dayBtn.addEventListener('click', async () => {
         else if (count === maxVotes) { potentialVictims.push(pid); }
     }
     
+    // Pick highest voted target
     let victimId = null;
+    if (potentialVictims.length > 0) {
+        victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
+    }
+
+    let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
-    // --- PRIORITY LOGIC ---
-    let finalNightDeathId = null;
-
-    // 1. GRANDMA CHECK (Highest Priority)
-    if (grandmaVotes >= 2) {
-        // Overwhelmed
-        const grandmaEntry = Object.entries(players).find(([k,v]) => v.role === "grandma");
-        if(grandmaEntry) {
-            finalNightDeathId = grandmaEntry[0];
-            nightDeathReason = "Killed by Mafia (Grandma Overwhelmed)";
-        }
-    } 
-    else if (grandmaVotes === 1 && grandmaAttacker) {
-        // Revenge Kill - happens even if consensus fails!
-        finalNightDeathId = grandmaAttacker;
-        nightDeathReason = "Shot by Grandma (Revenge)";
-    }
-    // 2. NORMAL KILL (Only if Grandma didn't trigger)
-    else {
-        // Consensus Check: If >1 Mafia alive, need 2+ votes
-        if (aliveMafiaCount > 1 && maxVotes < 2) {
-            victimId = null;
-            nightDeathReason = "Mafia failed to agree (No consensus)";
+    // --- GRANDMA IMMUNITY & RICOCHET LOGIC ---
+    // If target is Grandma (implied by grandmaVotes > 0)
+    if (grandmaVotes > 0) {
+        // Grandma is IMMUNE to night kills. She never dies here.
+        
+        if (grandmaVotes >= 2) {
+            // 2+ Votes: Random Mafia Dies
+            const badGuys = Object.entries(players).filter(([pid, p]) => 
+                (p.role === "mafia" || p.role === "godfather") && !p.statusTags
+            );
+            
+            if (badGuys.length > 0) {
+                const [randomBadGuyId, bgData] = badGuys[Math.floor(Math.random() * badGuys.length)];
+                finalNightDeathId = randomBadGuyId;
+                nightDeathReason = "Grandma Ricochet (2+ Votes -> Random Mafia Died)";
+            } else {
+                finalNightDeathId = null; // Should not happen
+            }
         } 
-        else if (potentialVictims.length > 0) {
-            victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
-            finalNightDeathId = victimId;
+        else if (grandmaVotes === 1 && grandmaAttacker) {
+            // 1 Vote: Attacker Dies
+            finalNightDeathId = grandmaAttacker;
+            nightDeathReason = "Grandma Revenge (1 Vote -> Attacker Died)";
         }
     }
 
-    // Doctor Save
+    // Doctor Save (Standard)
+    // Note: If Grandma logic already picked a Mafia to die, Doctor cannot save the Mafia 
+    // because Doctor usually selects a "Target ID" to save. 
+    // If Doctor selected the Mafia member by coincidence, they save them.
+    // If Doctor selected Grandma, they wasted their save (Grandma was safe anyway).
     let wasSaved = false;
     let savedName = "Unknown";
+    
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
         wasSaved = true;
         savedName = getName(finalNightDeathId);
@@ -261,7 +264,6 @@ dayBtn.addEventListener('click', async () => {
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
     if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
     else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
-    else if (!victimId && aliveMafiaCount > 1 && maxVotes < 2 && grandmaVotes === 0) alertMsg += `🛡️ NO KILL. Mafia voted for different people.`;
     else alertMsg += `🛡️ No one died.`;
     
     alert(alertMsg);
@@ -359,24 +361,20 @@ submitActionBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
 
+    // MAFIA LOGIC: 1 Vote Only, No Family Fire
     if (role === "mafia" || role === "godfather") {
-        const snap = await get(ref(db, "room/players"));
-        const players = snap.val();
-        const aliveMafiaCount = Object.values(players).filter(p => 
-            (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
-        ).length;
+        const target = submitActionBtn.dataset.target;
+        if(!target) return alert("Select a target first!");
 
-        const requiredVotes = aliveMafiaCount === 1 ? 1 : 2;
-        if (mafiaSelections.length !== requiredVotes) {
-            return alert(`There are ${aliveMafiaCount} Mafia alive.\nYou must select exactly ${requiredVotes} victim(s).`);
-        }
-        await set(ref(db, `room/night/mafiaVotes/${pid}`), mafiaSelections);
-        submitActionBtn.innerText = "Votes Submitted";
+        await set(ref(db, `room/night/mafiaVotes/${pid}`), target);
+        
+        submitActionBtn.innerText = "Vote Submitted";
         submitActionBtn.disabled = true;
         actionPanel.classList.add("hidden");
         return;
     }
 
+    // Standard Actions
     const target = submitActionBtn.dataset.target;
     if(!target) return alert("Select a target first!");
 
@@ -455,7 +453,7 @@ onValue(ref(db, "room"), (snap) => {
     document.getElementById("phaseText").innerText = phase;
     document.body.className = phase === "night" ? "night" : "day";
     
-    if(phase !== "night") { actionTargets.innerHTML = ""; mafiaSelections = []; }
+    if(phase !== "night") { actionTargets.innerHTML = ""; }
     if(phase !== "day") voteTargets.innerHTML = "";
 
     playersList.innerHTML = "";
@@ -538,17 +536,6 @@ function createBtn(container, name, pid, btn, datasetKey) {
     
     b.addEventListener('click', (e) => {
         if(e.cancelable) e.preventDefault(); 
-        if ((myCurrentRole === "mafia" || myCurrentRole === "godfather") && datasetKey === "target") {
-             if (mafiaSelections.includes(pid)) {
-                mafiaSelections = mafiaSelections.filter(id => id !== pid);
-                b.classList.remove("selected");
-            } else {
-                mafiaSelections.push(pid);
-                b.classList.add("selected");
-            }
-            btn.disabled = false;
-            return;
-        }
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
         b.classList.add("selected");
         btn.disabled = false;
@@ -568,14 +555,13 @@ async function checkWinCondition() {
     const activePlayers = p.filter(x => !x.statusTags);
 
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    // Town Team: Only Civs and Grandma
+    // Town Team: Civilians + Grandma (Doc/Detective don't count for ratio)
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
     if (mafiaCount === 0 && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     } 
-    // FIX: Mafia Win only if STRICTLY GREATER
     else if (mafiaCount > townCount && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
