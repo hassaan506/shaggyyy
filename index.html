@@ -3,137 +3,127 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-    <title>Mafia Wars</title>
-    <!-- Importing Special Font -->
+    <title>Mafia Wars v4.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=5.0">
+    <link rel="stylesheet" href="style.css?v=6.0">
 </head>
 <body class="day">
 
-<!-- JOIN SCREEN -->
-<div id="screenJoin" class="screen">
-    <div class="joinCard">
-        <!-- New Title & Font -->
-        <h1 class="gameTitle">Mafia Wars</h1>
-        <p class="author">By Dr Shaggyy</p>
-        
-        <input type="text" id="playerName" placeholder="Enter your name" />
-        <div class="joinBtns">
-            <button id="joinHostBtn">Join as Host</button>
-            <button id="joinPlayerBtn">Join as Player</button>
+    <div id="scoreboard" class="scoreboard hidden">
+        <span class="townScore">Town: <b id="scoreTown">0</b></span>
+        <span class="vs">VS</span>
+        <span class="mafiaScore">Mafia: <b id="scoreMafia">0</b></span>
+    </div>
+
+    <div id="screenJoin" class="screen">
+        <div class="joinCard">
+            <h1 class="gameTitle">Mafia Wars</h1>
+            <p class="author">Persistent Edition</p>
+            <input type="text" id="playerName" placeholder="Enter your name" />
+            <button id="firstJoinBtn" class="primary">Enter Game Room</button>
         </div>
     </div>
-</div>
 
-<!-- GAME SCREEN -->
-<div id="screenGame" class="screen hidden">
-
-    <!-- Top bar: host info & controls -->
-    <div class="topBar">
-        <div class="hostSection">
-            <h2 id="hostStatus">Waiting...</h2>
-            <div id="hostCard" class="hostCard">
-                <h3 id="hostName">Host</h3>
-            </div>
-        </div>
-
-        <div id="hostControls" class="hidden">
-            <div class="btnGroup">
-                <button id="shuffleBtn">🔀 Shuffle</button>
-                <button id="dealBtn" disabled>🃏 Deal</button>
-                <button id="nightBtn">🌙 Night</button>
-                <button id="dayBtn">☀️ Day</button>
-                <button id="endVoteBtn" class="hidden">⚖️ End Vote</button>
-                <button id="resetBtn" style="background:#f44336">🔄 Reset</button>
-            </div>
-            <!-- Live Feed for Host -->
-            <div id="hostFeed" class="hostFeed hidden">
-                <h4>📡 Live Monitor</h4>
-                <ul id="liveVoteList"></ul>
+    <div id="screenLobby" class="screen hidden">
+        <div class="joinCard">
+            <h2>Next Round Lobby</h2>
+            <p>Waiting for a Host...</p>
+            <hr>
+            <div id="lobbyControls">
+                <p>Do you want to be the Host for the next round?</p>
+                <button id="claimHostBtn" style="background: #d32f2f;">👑 I will be Host</button>
+                <p style="margin-top:10px; font-size:12px; color:#666;">Or wait for someone else...</p>
             </div>
         </div>
     </div>
 
-    <!-- CENTRAL DECK AREA -->
-    <div id="tableArea" class="tableArea">
-        <div id="centralDeck" class="deckWrapper">
-            <div class="cardDeck">
-                <img src="images/back.png" class="deckImg">
-                <img src="images/back.png" class="deckImg layer1">
-                <img src="images/back.png" class="deckImg layer2">
+    <div id="screenGame" class="screen hidden">
+        <div class="topBar">
+            <div class="hostSection">
+                <h2 id="hostStatus">Waiting...</h2>
+                <div id="hostCard" class="hostCard">
+                    <h3 id="hostName">Host</h3>
+                </div>
             </div>
-            <p id="deckStatus">Tap to Shuffle</p>
+
+            <div id="hostControls" class="hidden">
+                <div class="btnGroup">
+                    <button id="shuffleBtn">🔀 Shuffle</button>
+                    <button id="dealBtn" disabled>🃏 Deal</button>
+                    <button id="nightBtn">🌙 Night</button>
+                    <button id="dayBtn">☀️ Day</button>
+                    <button id="endVoteBtn" class="hidden">Reveal Results</button>
+                    <button id="hardResetBtn" style="background:#444">⚠️ Hard Reset</button>
+                </div>
+                <div id="hostFeed" class="hostFeed hidden">
+                    <h4>📡 Live Votes</h4>
+                    <ul id="liveVoteList"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="tableArea" class="tableArea">
+            <div id="centralDeck" class="deckWrapper">
+                <div class="cardDeck">
+                    <img src="images/back.png" class="deckImg">
+                    <img src="images/back.png" class="deckImg layer1">
+                    <img src="images/back.png" class="deckImg layer2">
+                </div>
+                <p id="deckStatus">Tap to Shuffle</p>
+            </div>
+        </div>
+
+        <div class="gameContainer">
+            <div id="playersList" class="players"></div>
+
+            <div class="rightPanel">
+                <div id="phaseBanner" class="phaseBanner">Phase: <span id="phaseText">Waiting</span></div>
+
+                <div id="actionPanel" class="panel hidden">
+                    <h3>Night Action</h3>
+                    <div id="actionTargets" class="targets"></div>
+                    <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
+                </div>
+
+                <div id="votingPanel" class="panel hidden">
+                    <h3>Day Vote</h3>
+                    <div id="voteTargets" class="targets"></div>
+                    <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Game state display -->
-    <div class="gameContainer">
-        <!-- Players seats -->
-        <div id="playersList" class="players"></div>
-
-        <!-- Right panel: actions & voting -->
-        <div class="rightPanel">
-            <div id="phaseBanner" class="phaseBanner">Phase: <span id="phaseText">Day</span></div>
-
-            <!-- Action panel (Night) -->
-            <div id="actionPanel" class="panel hidden">
-                <h3>Night Action</h3>
-                <p id="actionInstruction">Select a target...</p>
-                <div id="actionTargets" class="targets"></div>
-                <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
-            </div>
-
-            <!-- Voting panel (Day) -->
-            <div id="votingPanel" class="panel hidden">
-                <h3>Day Vote</h3>
-                <p id="voteInstruction">Who do you want to eliminate?</p>
-                <div id="voteTargets" class="targets"></div>
-                <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
-            </div>
-
-            <!-- Game log -->
-            <div class="panel">
-                <h4>Game Log</h4>
-                <ul id="gameLog" class="log"></ul>
-            </div>
+    <div id="mafiaChat" class="hidden">
+        <div class="chatHeader">🕵️ Mafia Family Chat</div>
+        <div id="chatHistory"></div>
+        <div class="chatInputWrapper">
+            <input type="text" id="chatInput" placeholder="Whisper plan..." maxlength="30">
+            <button id="sendChatBtn">➤</button>
         </div>
     </div>
 
-    <button id="exitBtn" class="exitBtn">Exit Game</button>
-</div>
-
-<!-- ROLE MODAL -->
-<div id="roleModal">
-    <div class="modalContent">
-        <h2 id="modalName">Player Name</h2>
-        <img id="modalRole" src="" alt="Role Card" />
-        <p id="modalRoleText"></p>
-        <button class="closeModal" onclick="closeModal()">Close</button>
+    <div id="gameOverModal" class="hidden">
+        <div class="modalContent">
+            <h1 id="winMessage">GAME OVER</h1>
+            
+            <button id="nextRoundBtn" class="hidden" style="background: #28a745; color: white; width: 100%; padding: 15px; font-size: 18px;">🔄 Start Next Round (Soft Reset)</button>
+            
+            <p id="waitingForHostText" class="hidden">Waiting for Host to restart...</p>
+            
+            <button id="modalExitBtn" style="background: #333; color: white; width: 100%; margin-top: 10px;">🚪 Leave Room</button>
+        </div>
     </div>
-</div>
 
-<!-- Game Over -->
-<div id="gameOverModal" class="hidden">
-    <div class="modalContent">
-        <h1 id="winMessage">GAME OVER</h1>
-        <p>The game has ended.</p>
-        
-        <button id="modalResetBtn" class="hidden" style="background: #d32f2f; color: white; width: 100%; margin-bottom: 10px;">🔄 Reset Game (Kick All)</button>
-        <button id="modalExitBtn" style="background: #333; color: white; width: 100%;">🚪 Exit Room</button>
+    <div id="roleModal">
+        <div class="modalContent">
+            <h2 id="modalName">Player</h2>
+            <img id="modalRole" src="" alt="Role" />
+            <p id="modalRoleText"></p>
+            <button class="closeModal" onclick="closeModal()">Close</button>
+        </div>
     </div>
-</div>
 
-<!-- Mafia Chat -->    
-<div id="mafiaChat" class="hidden">
-    <div class="chatHeader">🕵️ Mafia Family Chat</div>
-    <div id="chatHistory"></div>
-    <div class="chatInputWrapper">
-        <input type="text" id="chatInput" placeholder="Whisper plan..." maxlength="30">
-        <button id="sendChatBtn">➤</button>
-    </div>
-</div>    
-<script type="module" src="main.js?v=5.0"></script>
+    <script type="module" src="main.js?v=6.0"></script>
 </body>
 </html>
-
-
