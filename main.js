@@ -129,7 +129,7 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
-// KICK LOGIC (Auto-Redirect)
+// KICK LOGIC
 onValue(ref(db, "room/players"), (snap) => {
     const players = snap.val();
     const myId = localStorage.getItem("playerId");
@@ -195,7 +195,6 @@ softResetBtn.addEventListener('click', async () => {
 playersList.addEventListener('click', (e) => {
     const target = e.target;
     
-    // KICK BUTTON
     if (target.classList.contains('kickBtn')) {
         e.stopPropagation();
         const pid = target.dataset.pid;
@@ -204,7 +203,6 @@ playersList.addEventListener('click', (e) => {
         return;
     }
 
-    // LATE DEAL BUTTON
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
         const pid = target.dataset.pid;
@@ -212,7 +210,6 @@ playersList.addEventListener('click', (e) => {
         return;
     }
 
-    // VIEW ROLE BUTTON (Only way to see card)
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
         const role = target.dataset.role;
@@ -224,17 +221,10 @@ playersList.addEventListener('click', (e) => {
     }
 });
 
-// CLOSE MODAL ON BACKGROUND CLICK
 window.onclick = function(event) {
-    if (event.target == roleModal) {
-        roleModal.style.display = "none";
-    }
-    if (event.target == nightResultModal) {
-        nightResultModal.classList.add("hidden");
-    }
+    if (event.target == roleModal) roleModal.style.display = "none";
+    if (event.target == nightResultModal) nightResultModal.classList.add("hidden");
 }
-
-// CLOSE BUTTON
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 
 shuffleBtn.addEventListener('click', async () => {
@@ -257,15 +247,27 @@ dealBtn.addEventListener('click', async () => {
     let roles = [];
     let badGuyCount = count >= 8 ? 3 : (count >= 6 ? 2 : 1);
 
+    // Bad Guys
     if (badGuyCount === 1) roles.push(Math.random() < 0.5 ? "godfather" : "mafia");
     else {
         roles.push("godfather");
         for (let i = 1; i < badGuyCount; i++) roles.push("mafia");
     }
+    
+    // Core Roles
     roles.push("doctor");
     roles.push("detective");
+    
+    // Special Roles Logic
     if (count > 5) roles.push("grandma");
     
+    // --- JESTER LOGIC (Added) ---
+    // Only if more than 7 players (8+)
+    if (count > 7) {
+        roles.push("jester");
+    }
+    
+    // Civilians
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
@@ -315,6 +317,7 @@ dayBtn.addEventListener('click', async () => {
         let finalNightDeathId = victimId;
         let nightDeathReason = "Killed by Mafia";
 
+        // Grandma Logic
         if (grandmaVotes > 0) {
             if (grandmaVotes >= 2) {
                 const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
@@ -403,6 +406,10 @@ endDayBtn.addEventListener('click', async () => {
     const votesSnap = await get(ref(db, "room/votes"));
     const votes = votesSnap.val() ? Object.values(votesSnap.val()) : [];
     
+    // --- JESTER LOGIC (Check Elimination) ---
+    const playersSnap = await get(ref(db, "room/players"));
+    const players = playersSnap.val();
+
     let elimId = null;
     if (votes.length > 0) {
         const count = {};
@@ -414,6 +421,14 @@ endDayBtn.addEventListener('click', async () => {
             else if (count[pid] === max) { tied.push(pid); }
         }
         if(tied.length > 0) elimId = tied[Math.floor(Math.random() * tied.length)];
+    }
+
+    // JESTER WIN CHECK
+    if (elimId && elimId !== "SKIP" && players[elimId] && players[elimId].role === "jester") {
+        await set(ref(db, "room/winMessage"), "🤡 JESTER WINS! (Chaos Reigns)");
+        await set(ref(db, "room/gamePhase"), "GAME OVER");
+        // Optional: Reset score or give Jester a point (not implemented in standard team score)
+        return; // End day processing here
     }
 
     let report = "📢 DAY END REPORT:\n";
@@ -432,7 +447,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS & CHAT
+// 4. PLAYER ACTIONS
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -609,7 +624,6 @@ onValue(ref(db, "room"), (snap) => {
             div.classList.add("playerCard");
             
             if(isHost) {
-                // Kick Button
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
@@ -617,7 +631,6 @@ onValue(ref(db, "room"), (snap) => {
                 kickBtn.dataset.name = p.name;
                 div.appendChild(kickBtn);
 
-                // Late Deal Button
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
@@ -627,7 +640,6 @@ onValue(ref(db, "room"), (snap) => {
                 }
             }
 
-            // VIEW ROLE BUTTON (Only way to see card)
             if (isDealt && canSeeRole && p.role) {
                 const viewBtn = document.createElement("button");
                 viewBtn.className = "viewRoleBtn";
@@ -638,7 +650,6 @@ onValue(ref(db, "room"), (snap) => {
             }
 
             div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
-            // REMOVED div.onclick
             
             playersList.appendChild(div);
 
