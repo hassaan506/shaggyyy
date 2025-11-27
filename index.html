@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
     <title>Mafia Wars by Dr Shaggyyy</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=8.0">
+    <link rel="stylesheet" href="style.css?v=10.0">
 </head>
 <body class="">
 
@@ -24,7 +24,6 @@
         <div class="joinCard">
             <h1 class="gameTitle">Mafia Wars</h1>
             <p class="author">By Dr Shaggyyy</p>
-            
             <input type="text" id="playerName" placeholder="Enter your name" maxlength="20" />
             <button id="firstJoinBtn" class="primary">Enter Game Room</button>
             <p id="joinStatus" style="margin-top:10px; font-size:12px; color:red;"></p>
@@ -36,7 +35,6 @@
             <h2 style="font-size: 32px; margin-bottom: 10px;">Game Lobby</h2>
             <p>Waiting for a Host...</p>
             <hr style="border-color: #444; opacity: 0.3; margin: 20px 0;">
-            
             <div id="lobbyControls">
                 <p style="font-size: 14px; opacity: 0.8; margin: 0;">Is this your game room?</p>
                 <button id="claimHostBtn">👑 I will be Host</button>
@@ -61,7 +59,8 @@
                     <button id="nightBtn">🌙 Night</button>
                     <button id="dayBtn">☀️ Day</button>
                     <button id="endVoteBtn" class="hidden">Reveal Results</button>
-                    <button id="hardResetBtn" style="background:#444">⚠️ Hard Reset</button>
+                    <button id="softResetBtn" style="background:#f0ad4e; color:white;">🔄 Restart Round</button>
+                    <button id="hardResetBtn" style="background:#d9534f; color:white;">⚠️ Hard Reset</button>
                 </div>
                 <div id="hostFeed" class="hostFeed hidden">
                     <h4>📡 Live Votes</h4>
@@ -116,11 +115,8 @@
     <div id="gameOverModal" class="hidden">
         <div class="modalContent">
             <h1 id="winMessage">GAME OVER</h1>
-            
             <button id="nextRoundBtn" class="hidden" style="background: #28a745; color: white; width: 100%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; cursor: pointer; margin-bottom: 10px;">🔄 Start Next Round</button>
-            
             <p id="waitingForHostText" class="hidden">Waiting for Host to restart...</p>
-            
             <button id="modalExitBtn" style="background: #333; color: white; width: 100%; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #555; cursor: pointer;">🚪 Leave Room</button>
         </div>
     </div>
@@ -134,6 +130,6 @@
         </div>
     </div>
 
-    <script type="module" src="main.js?v=8.0"></script>
+    <script type="module" src="main.js?v=10.0"></script>
 </body>
 </html>
