@@ -36,6 +36,7 @@ const scoreboard = document.getElementById("scoreboard");
 const scoreTown = document.getElementById("scoreTown");
 const scoreMafia = document.getElementById("scoreMafia");
 
+// Controls
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
 const hardResetBtn = document.getElementById("hardResetBtn");
@@ -44,6 +45,7 @@ const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
 const endDayBtn = document.getElementById("endVoteBtn");
 
+// Modals
 const gameOverModal = document.getElementById("gameOverModal");
 const nextRoundBtn = document.getElementById("nextRoundBtn");
 const modalExitBtn = document.getElementById("modalExitBtn");
@@ -53,6 +55,16 @@ const deckStatus = document.getElementById("deckStatus");
 const actionPanel = document.getElementById("actionPanel");
 const votingPanel = document.getElementById("votingPanel");
 
+// NIGHT RESULT MODAL ELEMENTS
+const nightResultModal = document.getElementById("nightResultModal");
+const nrCardInner = document.getElementById("nrCardInner");
+const nrIcon = document.getElementById("nrIcon");
+const nrName = document.getElementById("nrName");
+const nrDetail = document.getElementById("nrDetail");
+const nrTitle = document.getElementById("nrTitle");
+const nrCloseBtn = document.getElementById("nrCloseBtn");
+
+// Chat
 const mafiaChat = document.getElementById("mafiaChat");
 const chatHistory = document.getElementById("chatHistory");
 const chatInput = document.getElementById("chatInput");
@@ -121,7 +133,7 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
-// SOFT RESET LOGIC
+// SOFT RESET
 async function performSoftReset() {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
@@ -186,9 +198,8 @@ dealBtn.addEventListener('click', async () => {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
-    // --- DOUBLE SHUFFLE LOGIC ---
     let playersArr = Object.entries(snap.val());
-    shuffleArray(playersArr); // 1. Shuffle Players
+    shuffleArray(playersArr);
 
     const count = playersArr.length;
     let roles = [];
@@ -206,7 +217,7 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
-    shuffleArray(roles); // 2. Shuffle Roles
+    shuffleArray(roles);
 
     playersArr.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
@@ -221,15 +232,16 @@ nightBtn.addEventListener('click', () => {
     remove(ref(db, "room/pendingResults"));
 });
 
+// --- NEW NIGHT RESULT ANIMATION LOGIC ---
 dayBtn.addEventListener('click', async () => {
     try {
         const nightSnap = await get(ref(db, "room/night"));
         const night = nightSnap.val() || {};
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val();
-        
-        if (!players) throw new Error("No players found in DB");
+        if (!players) throw new Error("No players found");
 
+        // Logic Calculation (Same as before)
         const mafiaVotesRaw = night.mafiaVotes || {};
         let voteCounts = {};
         let grandmaVotes = 0;
@@ -283,13 +295,42 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Bulletproof Vest";
         }
 
-        let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
-        if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
-        else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
-        else if (vestSaved) alertMsg += `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
-        else alertMsg += `🛡️ No one died.`;
-        alert(alertMsg);
+        // --- ANIMATION TRIGGER (Instead of Alert) ---
+        // 1. Populate Modal Data
+        if (finalNightDeathId) {
+            nrTitle.innerText = "TRAGEDY!";
+            nrIcon.innerText = "💀";
+            nrName.innerText = getName(finalNightDeathId);
+            nrDetail.innerText = nightDeathReason;
+            document.querySelector('.flip-card-back').className = "flip-card-back death";
+        } else if (wasSaved) {
+            nrTitle.innerText = "MIRACLE!";
+            nrIcon.innerText = "🛡️";
+            nrName.innerText = savedName;
+            nrDetail.innerText = "Saved by Doctor";
+            document.querySelector('.flip-card-back').className = "flip-card-back save";
+        } else if (vestSaved) {
+            nrTitle.innerText = "BULLETPROOF!";
+            nrIcon.innerText = "🦺";
+            nrName.innerText = "Civilian";
+            nrDetail.innerText = "Bullet Bounced Off!";
+            document.querySelector('.flip-card-back').className = "flip-card-back safe";
+        } else {
+            nrTitle.innerText = "PEACEFUL NIGHT";
+            nrIcon.innerText = "🌙";
+            nrName.innerText = "No One";
+            nrDetail.innerText = "Everyone Survived";
+            document.querySelector('.flip-card-back').className = "flip-card-back safe";
+        }
 
+        // 2. Show Modal
+        nrCardInner.classList.remove("flipped"); // Reset state
+        nightResultModal.classList.remove("hidden");
+        
+        // 3. Trigger Flip Animation after slight delay
+        setTimeout(() => { nrCardInner.classList.add("flipped"); }, 100);
+
+        // 4. Update Database
         const resetVests = {};
         Object.keys(players).forEach(pid => {
             resetVests[`room/players/${pid}/vestActive`] = false;
@@ -300,11 +341,16 @@ dayBtn.addEventListener('click', async () => {
         await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null });
         await remove(ref(db, "room/votes")); 
         await set(ref(db, "room/gamePhase"), "day");
-    
+
     } catch (e) {
         console.error(e);
-        alert("Day Transition Error: " + e.message);
+        alert("System Error: " + e.message);
     }
+});
+
+// Close Result Modal
+nrCloseBtn.addEventListener('click', () => {
+    nightResultModal.classList.add("hidden");
 });
 
 endDayBtn.addEventListener('click', async () => {
@@ -519,7 +565,6 @@ onValue(ref(db, "room"), (snap) => {
             div.classList.add("playerCard");
             
             if(isHost) {
-                // FIXED KICK
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
@@ -529,7 +574,6 @@ onValue(ref(db, "room"), (snap) => {
                 };
                 div.appendChild(kickBtn);
 
-                // FIXED LATE DEAL
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
