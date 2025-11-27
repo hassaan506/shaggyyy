@@ -1,28 +1,35 @@
 /* ---------------------------------------------
-    1. GENERAL & SKY SYSTEM
+    1. GENERAL & INTERACTION FIXES
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
 body { 
-    min-height: 100vh;
-    padding-top: 60px; 
+    min-height: 100vh; padding-top: 60px; 
     transition: background 1.0s ease, color 1.0s ease;
-    background-color: #1a1a1a; 
-    color: #ddd;
+    background-color: #1a1a1a; color: #ddd;
     overflow-x: hidden;
+    /* DISABLE TEXT SELECTION GLOBALLY */
+    user-select: none; -webkit-user-select: none;
+}
+
+/* PREVENT IMAGE DRAGGING / SAVING */
+img {
+    pointer-events: none; /* Clicks pass through image to the card */
+    user-select: none; -webkit-user-select: none;
+    -webkit-user-drag: none; user-drag: none;
 }
 
 button { touch-action: manipulation; outline: none; } 
 .hidden { display: none !important; }
 .screen { width: 100%; min-height: 90vh; display: flex; flex-direction: column; align-items: center; padding: 15px; }
 
-/* SKY CONTAINER */
+/* ---------------------------------------------
+    2. THEMES & SKY
+--------------------------------------------- */
 #skyContainer {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none; z-index: -1; overflow: hidden;
 }
-
-/* SUN & MOON */
 .sun {
     position: absolute; top: -150px; right: 5%; width: 100px; height: 100px;
     background: radial-gradient(circle, #ffd700 20%, #ff8c00 100%);
@@ -40,119 +47,75 @@ button { touch-action: manipulation; outline: none; }
     background: rgba(0,0,0,0.1); border-radius: 50%;
     box-shadow: 20px 20px 0 -3px rgba(0,0,0,0.1), -10px 30px 0 -5px rgba(0,0,0,0.1);
 }
-
 @keyframes sunPulse { 0% { transform: scale(1); box-shadow: 0 0 50px #ff8c00; } 100% { transform: scale(1.1); box-shadow: 0 0 80px #ffa500; } }
 @keyframes moonFloat { 0% { transform: translateY(0); } 100% { transform: translateY(15px); } }
 
-/* ---------------------------------------------
-    2. THEMES (DAY VS NIGHT)
---------------------------------------------- */
-body.day {
-    background-color: #f4f4f4;
-    background-image: linear-gradient(to bottom, #ffffff, #e0e0e0);
-    color: #333;
-}
+/* THEMES */
+body.day { background-color: #f4f4f4; background-image: linear-gradient(to bottom, #ffffff, #e0e0e0); color: #333; }
 body.day .sun { top: 80px; animation: sunPulse 4s infinite alternate; }
-body.day .joinCard, body.day .playerCard, body.day .topBar {
-    background: #ffffff; border: 1px solid #ccc; box-shadow: 0 8px 20px rgba(0,0,0,0.1); color: #000;
-}
+body.day .joinCard, body.day .playerCard, body.day .topBar { background: #ffffff; border: 1px solid #ccc; box-shadow: 0 8px 20px rgba(0,0,0,0.1); color: #000; }
 body.day .gameTitle { color: #d32f2f; text-shadow: 2px 2px 0px #aaa; }
 
-body.night {
-    background-color: #000000;
-    background-image: radial-gradient(circle at center, #0a0a15 0%, #000000 90%);
-    color: #aaccff;
-}
+body.night { background-color: #000000; background-image: radial-gradient(circle at center, #0a0a15 0%, #000000 90%); color: #aaccff; }
 body.night .moon { top: 80px; animation: moonFloat 6s infinite ease-in-out alternate; }
-body.night .joinCard, body.night .playerCard, body.night .topBar {
-    background: #050510; border: 1px solid #1c1c4f;
-    box-shadow: 0 0 25px rgba(0, 50, 255, 0.15), inset 0 0 20px rgba(0,0,0,0.8); color: #fff;
-}
+body.night .joinCard, body.night .playerCard, body.night .topBar { background: #050510; border: 1px solid #1c1c4f; box-shadow: 0 0 25px rgba(0, 50, 255, 0.15), inset 0 0 20px rgba(0,0,0,0.8); color: #fff; }
 body.night .gameTitle { color: #3b5bdb; text-shadow: 0 0 15px rgba(59, 91, 219, 0.8); }
 
 /* ---------------------------------------------
-    3. JOIN SCREEN & LOBBY
+    3. UI ELEMENTS & LOBBY
 --------------------------------------------- */
-.joinCard { 
-    padding: 40px; border-radius: 20px; text-align: center; 
-    margin-top: 5vh; width: 90%; max-width: 400px; 
-    transition: background 1s, border 1s, box-shadow 1s;
-}
+.joinCard { padding: 40px; border-radius: 20px; text-align: center; margin-top: 5vh; width: 90%; max-width: 400px; transition: background 1s; }
 .gameTitle { font-family: 'Creepster', cursive; font-size: 64px; letter-spacing: 4px; margin-bottom: 5px; transition: color 1s; }
 .author { font-size: 14px; font-weight: bold; opacity: 0.6; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 1px solid #888; display: inline-block; }
-
-.joinCard input { 
-    padding: 15px; margin: 15px 0; width: 100%; border-radius: 30px; 
-    font-size: 18px; text-align: center; transition: 0.3s;
-}
+.joinCard input { padding: 15px; margin: 15px 0; width: 100%; border-radius: 30px; font-size: 18px; text-align: center; transition: 0.3s; }
 body.day .joinCard input { background: #f0f2f5; border: 2px solid #ccc; color: #333; }
 body.night .joinCard input { background: #111; border: 2px solid #444; color: #fff; }
 
-#screenLobby .joinCard {
-    background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.5); color: white;
-}
+#screenLobby .joinCard { background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.5); color: white; }
 body.day #screenLobby .joinCard { background: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; color: #333; }
 #screenLobby p:first-of-type { font-size: 18px; font-weight: 600; margin-bottom: 20px; animation: pulseText 1.5s infinite; }
 @keyframes pulseText { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 #lobbyControls { display: flex; flex-direction: column; gap: 15px; margin-top: 25px; }
-
-#claimHostBtn {
-    width: 100%; padding: 20px; font-size: 20px; text-transform: uppercase; letter-spacing: 2px;
-    border: none; border-radius: 12px; cursor: pointer; font-weight: 900; color: #4a3b00;
-    background: linear-gradient(135deg, #ffd700 0%, #fdb931 100%);
-    box-shadow: 0 6px 20px rgba(253, 185, 49, 0.4); position: relative; overflow: hidden;
-}
+#claimHostBtn { width: 100%; padding: 20px; font-size: 20px; text-transform: uppercase; letter-spacing: 2px; border: none; border-radius: 12px; cursor: pointer; font-weight: 900; color: #4a3b00; background: linear-gradient(135deg, #ffd700 0%, #fdb931 100%); box-shadow: 0 6px 20px rgba(253, 185, 49, 0.4); position: relative; overflow: hidden; }
 #claimHostBtn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 30px rgba(253, 185, 49, 0.6); }
 
 /* ---------------------------------------------
-    4. BUTTONS
+    4. BUTTONS & HOST ACTIONS
 --------------------------------------------- */
-.primary { 
-    width: 100%; padding: 15px; background: linear-gradient(to bottom, #ff5f5f, #c70000); 
-    color: white; border: none; border-radius: 30px; margin-top: 10px; font-size: 18px; 
-    font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(200,0,0,0.3); transition: 0.2s;
-}
+.primary { width: 100%; padding: 15px; background: linear-gradient(to bottom, #ff5f5f, #c70000); color: white; border: none; border-radius: 30px; margin-top: 10px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(200,0,0,0.3); transition: 0.2s; }
 .primary:hover { background: linear-gradient(to bottom, #ff7f7f, #e60000); transform: translateY(-2px); }
 .primary:disabled { background: #888; cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
 
+/* FIXED KICK BUTTON - High Z-Index */
 .kickBtn {
-    position: absolute; top: -12px; right: -12px; background: linear-gradient(135deg, #ff4d4d, #990000);
-    color: white; border: 2px solid #fff; border-radius: 50%; width: 30px; height: 30px; 
-    font-weight: bold; font-size: 14px; cursor: pointer; z-index: 100;
+    position: absolute; top: -12px; right: -12px; 
+    background: linear-gradient(135deg, #ff4d4d, #990000);
+    color: white; border: 2px solid #fff; border-radius: 50%; width: 32px; height: 32px; 
+    font-weight: bold; font-size: 14px; cursor: pointer; 
+    z-index: 9999; /* SUPREME LAYER */
     box-shadow: 0 2px 5px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
 }
-.kickBtn:hover { transform: scale(1.2) rotate(90deg); }
+.kickBtn:hover { transform: scale(1.2); }
 
+/* FIXED LATE DEAL BUTTON - High Z-Index */
 .lateDealBtn {
     margin-top: 8px; padding: 6px 12px; background: linear-gradient(to bottom, #4cd964, #28a745);
-    color: white; border: none; border-radius: 20px; font-size: 11px; cursor: pointer; z-index: 100;
+    color: white; border: none; border-radius: 20px; font-size: 11px; cursor: pointer; 
+    z-index: 9999; position: relative;
 }
 
-.skipBtn {
-    background: #6c757d !important; border: 1px solid #555 !important;
-    color: #fff !important; font-style: italic; border-radius: 20px !important;
-}
+.skipBtn { background: #6c757d !important; border: 1px solid #555 !important; color: #fff !important; font-style: italic; border-radius: 20px !important; }
 .skipBtn.selected { background: #343a40 !important; border-color: #fff !important; box-shadow: 0 0 10px white; }
 
-.vestBtn {
-    width: 100%; padding: 15px; background: linear-gradient(to bottom, #4a90e2, #0056b3);
-    color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold;
-    cursor: pointer; box-shadow: 0 4px 10px rgba(0, 80, 255, 0.3); margin-bottom: 10px; transition: 0.2s;
-}
+.vestBtn { width: 100%; padding: 15px; background: linear-gradient(to bottom, #4a90e2, #0056b3); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0, 80, 255, 0.3); margin-bottom: 10px; transition: 0.2s; }
 .vestBtn:hover { transform: scale(1.02); background: linear-gradient(to bottom, #5aa0f2, #1066c3); }
 
 /* ---------------------------------------------
-    5. GAME UI ELEMENTS
+    5. GAME GRID & PANELS
 --------------------------------------------- */
-.topBar { 
-    width: 100%; max-width: 1200px; margin-bottom: 20px; padding: 15px; 
-    border-radius: 16px; display: flex; flex-direction: column; gap: 10px; transition: background 1s, border 1s;
-}
+.topBar { width: 100%; max-width: 1200px; margin-bottom: 20px; padding: 15px; border-radius: 16px; display: flex; flex-direction: column; gap: 10px; transition: background 1s, border 1s; }
 .btnGroup { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.btnGroup button { 
-    padding: 10px 18px; cursor: pointer; border: none; border-radius: 20px; font-size: 14px; font-weight: 600; transition: 0.2s;
-}
+.btnGroup button { padding: 10px 18px; cursor: pointer; border: none; border-radius: 20px; font-size: 14px; font-weight: 600; transition: 0.2s; }
 body.day .btnGroup button { background: linear-gradient(to bottom, #4facfe, #00f2fe); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 body.night .btnGroup button { background: #1a1a2a; border: 1px solid #3b5bdb; color: #aaccff; }
 
@@ -171,9 +134,7 @@ body.night .btnGroup button { background: #1a1a2a; border: 1px solid #3b5bdb; co
 body.day .panel { background: #ffffff; border: 1px solid #eee; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
 body.night .panel { background: #0a0a12; border: 1px solid #1c1c4f; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
 
-.targets button { 
-    padding: 12px; border-radius: 8px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 8px; font-weight: 500; transition: 0.2s;
-}
+.targets button { padding: 12px; border-radius: 8px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 8px; font-weight: 500; transition: 0.2s; }
 body.day .targets button { background: #f0f2f5; border: 1px solid #ddd; color: #333; }
 body.day .targets button:hover { background: #e4e6eb; transform: translateX(5px); }
 body.day .targets button.selected { background: linear-gradient(to right, #d32f2f, #ff5f5f) !important; color: white !important; border: none; }
@@ -185,9 +146,23 @@ body.night .targets button.selected { background: rgba(211, 47, 47, 0.8) !import
 .townScore { color: #4dabf7; font-weight: 900; font-size: 20px; text-shadow: 0 0 10px #4dabf7; }
 .mafiaScore { color: #e03131; font-weight: 900; font-size: 20px; text-shadow: 0 0 10px #e03131; }
 
-#roleModal, #gameOverModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
+#roleModal, #gameOverModal, #nightResultModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
 .modalContent { background: #fff; padding: 40px; border-radius: 24px; text-align: center; width: 85%; max-width: 350px; }
 body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #d32f2f; }
+
+/* 3D FLIP CARD MODAL */
+.result-wrapper { background: transparent !important; box-shadow: none !important; perspective: 1000px; }
+.flip-card-container { width: 200px; height: 280px; margin: 0 auto 30px auto; }
+.flip-card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.8s; transform-style: preserve-3d; }
+.flip-card-inner.flipped { transform: rotateY(180deg); }
+.flip-card-front, .flip-card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid #444; }
+.flip-card-front { background: #1a1a1a; }
+.flip-card-front img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+.flip-card-back { background: #111; color: white; transform: rotateY(180deg); box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+.result-icon { font-size: 60px; margin-bottom: 10px; }
+.flip-card-back.death { border-color: #d32f2f; box-shadow: 0 0 20px #d32f2f; }
+.flip-card-back.save { border-color: #28a745; box-shadow: 0 0 20px #28a745; }
+.flip-card-back.safe { border-color: #4dabf7; box-shadow: 0 0 20px #4dabf7; }
 
 #mafiaChat { position: fixed; bottom: 20px; left: 20px; width: 280px; height: 320px; background: rgba(10, 10, 18, 0.95); border: 2px solid #d32f2f; border-radius: 12px; display: flex; flex-direction: column; z-index: 1500; backdrop-filter: blur(5px); box-shadow: 0 0 25px rgba(211, 47, 47, 0.4); }
 .chatHeader { background: #d32f2f; color: white; padding: 10px; font-weight: bold; font-size: 13px; text-align: center; border-top-left-radius: 10px; border-top-right-radius: 10px; }
@@ -198,158 +173,38 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 .chatInputWrapper { display: flex; border-top: 1px solid #333; padding: 10px; background: transparent; }
 #chatInput { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 10px; border-radius: 20px; outline: none; }
 
-/* ---------------------------------------------
-    9. THE FARO SHUFFLE (Split & Zipper)
---------------------------------------------- */
+/* FARO SHUFFLE */
 .tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
 .cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
-
-/* Base Card Style */
-.deckImg { 
-    width: 100%; height: 100%; 
-    border-radius: 8px; 
-    /* Deep shadow to show stack thickness */
-    box-shadow: 2px 2px 0 #111, 4px 4px 0 #222, 6px 6px 10px rgba(0,0,0,0.5); 
-    position: absolute; top:0; left:0; 
-    border: 1px solid #444;
-    transition: transform 0.2s;
-    background-color: #fff; /* Ensure opaque background */
-}
-
-/* Static State (Neat Stack) */
+.deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 2px 2px 0 #111, 4px 4px 0 #222, 6px 6px 10px rgba(0,0,0,0.5); position: absolute; top:0; left:0; border: 1px solid #444; transition: transform 0.2s; background-color: #fff; }
 .layer1 { transform: translate(-2px, -2px); z-index: 2; }
 .layer2 { transform: translate(-4px, -4px); z-index: 1; }
-.deckImg:first-child { transform: translate(0, 0); z-index: 3; } /* Top Card */
+.deckImg:first-child { transform: translate(0, 0); z-index: 3; }
 
-/* --- FARO ANIMATION LOGIC --- */
-
-/* 1. The Top Packet (Moves Right & Tilts Left) */
-.shaking .deckImg:first-child { 
-    animation: faroTopPacket 1.2s infinite ease-in-out; 
-}
-
-/* 2. The Bottom Packet (Moves Left & Tilts Right) */
-.shaking .layer1 { 
-    animation: faroBottomPacket 1.2s infinite ease-in-out; 
-}
-
-/* 3. The Base (Stays put but vibrates slightly to sell the friction) */
-.shaking .layer2 { 
-    animation: faroBase 1.2s infinite linear; 
-}
-
-/* --- KEYFRAMES --- */
+.shaking .deckImg:first-child { animation: faroTopPacket 1.2s infinite ease-in-out; }
+.shaking .layer1 { animation: faroBottomPacket 1.2s infinite ease-in-out; }
+.shaking .layer2 { animation: faroBase 1.2s infinite linear; }
 
 @keyframes faroTopPacket {
     0% { transform: translate(0,0); }
-    
-    /* Split Phase */
     20% { transform: translateX(60px) translateY(-10px) rotate(-15deg); }
-    
-    /* Pause/Align Phase */
     40% { transform: translateX(60px) translateY(-10px) rotate(-15deg); }
-    
-    /* The Zipper (Merge) Phase - Fast slide back */
     60% { transform: translateX(0) translateY(0) rotate(0); }
-    
-    /* Square Up (Little bounce) */
-    70% { transform: scale(1.05); }
-    80% { transform: scale(1.0); }
-    100% { transform: translate(0,0); }
+    70% { transform: scale(1.05); } 80% { transform: scale(1.0); } 100% { transform: translate(0,0); }
 }
-
 @keyframes faroBottomPacket {
     0% { transform: translate(-2px, -2px); }
-    
-    /* Split Phase */
     20% { transform: translateX(-60px) translateY(-10px) rotate(15deg); }
-    
-    /* Pause/Align Phase */
     40% { transform: translateX(-60px) translateY(-10px) rotate(15deg); }
-    
-    /* The Zipper (Merge) Phase */
     60% { transform: translate(-2px, -2px) rotate(0); }
-    
-    /* Square Up */
-    70% { transform: scale(1.05) translate(-2px, -2px); }
-    80% { transform: scale(1.0) translate(-2px, -2px); }
-    100% { transform: translate(-2px, -2px); }
+    70% { transform: scale(1.05) translate(-2px, -2px); } 80% { transform: scale(1.0) translate(-2px, -2px); } 100% { transform: translate(-2px, -2px); }
 }
-
 @keyframes faroBase {
-    0% { opacity: 1; }
-    20% { opacity: 0; } /* Hide base during split so it looks like 2 piles */
-    50% { opacity: 0; }
-    60% { opacity: 1; } /* Reappear on merge */
-    100% { opacity: 1; }
-}
-/* NIGHT RESULT MODAL STYLING */
-.result-wrapper {
-    background: transparent !important; /* Let card stand out */
-    box-shadow: none !important;
-    perspective: 1000px; /* Essential for 3D flip */
+    0% { opacity: 1; } 20% { opacity: 0; } 50% { opacity: 0; } 60% { opacity: 1; } 100% { opacity: 1; }
 }
 
-#nrTitle {
-    color: white; font-family: 'Creepster', cursive; 
-    font-size: 48px; text-shadow: 0 4px 10px black;
-    margin-bottom: 20px;
+@media (max-width: 768px) {
+    .gameContainer { grid-template-columns: 1fr; }
+    .rightPanel { order: -1; } 
+    #mafiaChat { width: 200px; height: 220px; bottom: 70px; left: 10px; }
 }
-
-/* THE CARD CONTAINER */
-.flip-card-container {
-    background-color: transparent;
-    width: 200px; height: 280px;
-    margin: 0 auto 30px auto;
-}
-
-/* THE INNER WRAPPER (This rotates) */
-.flip-card-inner {
-    position: relative; width: 100%; height: 100%;
-    text-align: center;
-    transition: transform 0.8s;
-    transform-style: preserve-3d;
-    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
-}
-
-/* Class to trigger the flip via JS */
-.flip-card-inner.flipped {
-    transform: rotateY(180deg);
-}
-
-/* FRONT & BACK FACES */
-.flip-card-front, .flip-card-back {
-    position: absolute; width: 100%; height: 100%;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    border-radius: 12px;
-    display: flex; flex-direction: column; 
-    justify-content: center; align-items: center;
-    border: 2px solid #444;
-}
-
-/* FRONT: Standard Card Back */
-.flip-card-front {
-    background-color: #1a1a1a;
-}
-.flip-card-front img {
-    width: 100%; height: 100%; object-fit: cover; border-radius: 10px;
-}
-
-/* BACK: The Result Info */
-.flip-card-back {
-    background-color: #111;
-    color: white;
-    transform: rotateY(180deg); /* Start flipped away */
-    box-shadow: 0 0 30px rgba(0,0,0,0.8);
-}
-
-/* Result Styling */
-.result-icon { font-size: 60px; margin-bottom: 10px; }
-#nrName { font-size: 22px; font-weight: bold; margin-bottom: 5px; color: #fff; }
-#nrDetail { font-size: 14px; opacity: 0.8; color: #aaa; }
-
-/* Dynamic Border Colors based on Result */
-.flip-card-back.death { border-color: #d32f2f; box-shadow: 0 0 20px #d32f2f; }
-.flip-card-back.save { border-color: #28a745; box-shadow: 0 0 20px #28a745; }
-.flip-card-back.safe { border-color: #4dabf7; box-shadow: 0 0 20px #4dabf7; }
