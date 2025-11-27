@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
 // --- CONFIGURATION ---
-// ⚠️ IMPORTANT: REPLACE WITH YOUR OWN FIREBASE CONFIG
+// ⚠️ REPLACE WITH YOUR FIREBASE CONFIG
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -13,14 +13,12 @@ const firebaseConfig = {
     appId: "1:1069937976880:web:b082963b7964c8e25b8f30"
 };
 
-// Initialize Firebase with Error Handling
 let app, db;
 try {
     app = initializeApp(firebaseConfig);
     db = getDatabase(app);
-    console.log("Firebase Initialized.");
 } catch (e) {
-    alert("CRITICAL ERROR: Firebase Config Invalid.\nPlease check your main.js file.");
+    console.error(e);
 }
 
 // --- DOM ELEMENTS ---
@@ -76,18 +74,15 @@ let allPlayersCache = {};
 let myCurrentRole = null;
 
 // --------------------------------------------------
-// 1. INITIALIZATION & JOIN FIX
+// 1. INITIALIZATION & JOIN
 // --------------------------------------------------
 
-// Auto-Login Check
 if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
     screenJoin.classList.add("hidden");
-    // Wait for DB sync to decide between Lobby or Game
 } else {
     screenJoin.classList.remove("hidden");
 }
 
-// FIXED: Join Logic (Prevents getting stuck)
 firstJoinBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
     if (!name) {
@@ -97,21 +92,17 @@ firstJoinBtn.addEventListener('click', async () => {
 
     firstJoinBtn.disabled = true;
     firstJoinBtn.innerText = "Joining...";
-    joinStatus.innerText = "Connecting to server...";
+    joinStatus.innerText = "Connecting...";
 
     try {
-        // 1. Create Player Reference
         const refP = push(ref(db, "room/players"));
         
-        // 2. Save to LocalStorage FIRST
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
-        localStorage.setItem("isHost", "false");
+        localStorage.setItem("isHost", "false"); // Default to false
 
-        // 3. Send to DB
         await set(refP, { name, role: null, statusTags: "" });
 
-        // 4. Force UI Update (Don't rely on reload)
         screenJoin.classList.add("hidden");
         location.reload();
 
@@ -124,7 +115,7 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST LOGIC
+// 2. LOBBY & HOST CLAIM
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
@@ -143,13 +134,11 @@ nextRoundBtn.addEventListener('click', async () => {
         const players = playersSnap.val() || {};
 
         const updates = {};
-        // Reset Players
         Object.keys(players).forEach(pid => {
             updates[`room/players/${pid}/role`] = null;
             updates[`room/players/${pid}/statusTags`] = "";
         });
 
-        // Reset Game Data
         updates["room/night"] = null;
         updates["room/votes"] = null;
         updates["room/pendingResults"] = null;
@@ -158,7 +147,6 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/deckDealt"] = false;
         updates["room/isShuffling"] = false;
         
-        // Go to Lobby
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
 
@@ -167,7 +155,7 @@ nextRoundBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. GAME CONTROLS
+// 3. HOST CONTROLS
 // --------------------------------------------------
 shuffleBtn.addEventListener('click', async () => {
     await set(ref(db, "room/isShuffling"), true);
@@ -219,9 +207,6 @@ dealBtn.addEventListener('click', async () => {
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
 
-// --------------------------------------------------
-// 4. HOST PHASES
-// --------------------------------------------------
 onValue(ref(db, "room/votes"), (snap) => {
     if (localStorage.getItem("isHost") !== "true") return;
     const votes = snap.val() || {};
@@ -249,10 +234,6 @@ dayBtn.addEventListener('click', async () => {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val();
     
-    const aliveMafiaCount = Object.values(players).filter(p => 
-        (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
-    ).length;
-
     const mafiaVotesRaw = night.mafiaVotes || {};
     let voteCounts = {};
     let grandmaVotes = 0;
@@ -277,7 +258,6 @@ dayBtn.addEventListener('click', async () => {
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
-    // Grandma Logic
     if (grandmaVotes > 0) {
         if (grandmaVotes >= 2) {
             const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
@@ -292,7 +272,6 @@ dayBtn.addEventListener('click', async () => {
         }
     }
 
-    // Doctor
     let wasSaved = false;
     let savedName = "Unknown";
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
@@ -347,7 +326,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 5. PLAYER ACTIONS & CHAT
+// 4. PLAYER ACTIONS
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -400,13 +379,17 @@ submitVoteBtn.addEventListener('click', async () => {
     await set(ref(db, `room/votes/${pid}`), target);
 });
 
+onValue(ref(db, "room/publicReport"), (snap) => {
+    const msg = snap.val();
+    if (msg) alert(msg);
+});
+
 // --------------------------------------------------
-// 6. MAIN SYNC LOOP
+// 5. MAIN LOOP (With Lobby Logic Fix)
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
     if (!data) {
-        // Clean restart if DB cleared
         if (localStorage.getItem("playerId")) {
             localStorage.clear();
             alert("Host cleared the game.");
@@ -425,12 +408,13 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // LOBBY PHASE
-    if (phase === "Lobby") {
+    // --- FIXED LOBBY LOGIC ---
+    // If "Lobby" phase OR No Host exists -> Show Lobby
+    if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
         gameOverModal.classList.add("hidden");
-        return;
+        return; // Stop rendering game
     } else {
         screenLobby.classList.add("hidden");
         if(myId) screenGame.classList.remove("hidden");
@@ -483,7 +467,8 @@ onValue(ref(db, "room"), (snap) => {
         myCurrentRole = me ? me.role : null;
         const amDead = me && me.statusTags && me.statusTags.length > 0;
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
-        
+        const hasVotedDay = data.votes && data.votes[myId];
+
         if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
         else mafiaChat.classList.add("hidden");
 
@@ -539,9 +524,9 @@ onValue(ref(db, "room"), (snap) => {
                         }
                     }
                 }
+                
                 if (phase === "day" && !isMe) {
-                    const hasVoted = data.votes && data.votes[myId];
-                    if (hasVoted) {
+                    if (hasVotedDay) {
                         votingPanel.classList.remove("hidden");
                         votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
                     } else {
@@ -557,6 +542,23 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
 });
+
+// --- HELPERS ---
+function createBtn(container, name, pid, btn, datasetKey) {
+    const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
+    if(existing) return;
+    const b = document.createElement("button");
+    b.innerText = name;
+    b.dataset.pid = pid;
+    b.addEventListener('click', (e) => {
+        if(e.cancelable) e.preventDefault(); 
+        Array.from(container.children).forEach(c => c.classList.remove("selected"));
+        b.classList.add("selected");
+        btn.disabled = false;
+        btn.dataset[datasetKey] = pid;
+    });
+    container.appendChild(b);
+}
 
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
@@ -581,11 +583,6 @@ async function checkWinCondition() {
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     }
 }
-
-onValue(ref(db, "room/publicReport"), (snap) => {
-    const msg = snap.val();
-    if (msg) alert(msg);
-});
 
 hardResetBtn.addEventListener('click', async () => {
     if (confirm("HARD RESET? This kicks everyone.")) {
