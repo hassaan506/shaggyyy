@@ -77,6 +77,7 @@ let myCurrentRole = null;
 // 1. INITIALIZATION & JOIN
 // --------------------------------------------------
 
+// Auto-Login Check
 if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
     screenJoin.classList.add("hidden");
 } else {
@@ -97,9 +98,10 @@ firstJoinBtn.addEventListener('click', async () => {
     try {
         const refP = push(ref(db, "room/players"));
         
+        // Save local ID temporarily. If they become host, this changes.
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
-        localStorage.setItem("isHost", "false"); // Default to false
+        localStorage.setItem("isHost", "false");
 
         await set(refP, { name, role: null, statusTags: "" });
 
@@ -115,16 +117,27 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST CLAIM
+// 2. LOBBY & HOST CLAIM (FIXED)
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
-    if(!myName) return location.reload();
+    const myTempId = localStorage.getItem("playerId");
 
+    if(!myName || !myTempId) return location.reload();
+
+    // 1. Set Host Name
     await set(ref(db, "room/host"), { name: myName });
+    
+    // 2. REMOVE MYSELF FROM PLAYERS LIST (The Fix)
+    await remove(ref(db, `room/players/${myTempId}`));
+
+    // 3. Start Game State
     await set(ref(db, "room/gamePhase"), "Waiting");
     
+    // 4. Update Local Storage
     localStorage.setItem("isHost", "true");
+    localStorage.setItem("playerId", "HOST"); // Special ID for Host
+    
     location.reload();
 });
 
@@ -134,11 +147,13 @@ nextRoundBtn.addEventListener('click', async () => {
         const players = playersSnap.val() || {};
 
         const updates = {};
+        // Reset Players
         Object.keys(players).forEach(pid => {
             updates[`room/players/${pid}/role`] = null;
             updates[`room/players/${pid}/statusTags`] = "";
         });
 
+        // Reset Game Data
         updates["room/night"] = null;
         updates["room/votes"] = null;
         updates["room/pendingResults"] = null;
@@ -147,10 +162,18 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/deckDealt"] = false;
         updates["room/isShuffling"] = false;
         
+        // Go to Lobby
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
 
         await update(ref(db), updates);
+        
+        // Host also resets to become a potential player or host again
+        localStorage.setItem("isHost", "false");
+        // We keep "HOST" as playerId until they rejoin as player, 
+        // OR we force a reload to login screen. 
+        // Better: Force reload.
+        location.reload();
     }
 });
 
@@ -326,7 +349,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS
+// 4. PLAYER ACTIONS & CHAT
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -385,7 +408,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN LOOP (With Lobby Logic Fix)
+// 5. MAIN SYNC LOOP
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -408,16 +431,26 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // --- FIXED LOBBY LOGIC ---
-    // If "Lobby" phase OR No Host exists -> Show Lobby
+    // LOBBY PHASE (Or no host)
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
         gameOverModal.classList.add("hidden");
-        return; // Stop rendering game
+        return;
     } else {
         screenLobby.classList.add("hidden");
-        if(myId) screenGame.classList.remove("hidden");
+        
+        // HOST VIEW (No Game Screen logic needed, just admin tools)
+        if (isHost) {
+            screenGame.classList.remove("hidden");
+            hostControls.classList.remove("hidden");
+            endDayBtn.classList.toggle("hidden", phase !== "day");
+            hostFeed.classList.remove("hidden");
+        } 
+        // PLAYER VIEW
+        else if (myId && myId !== "HOST") {
+            screenGame.classList.remove("hidden");
+        }
     }
 
     // GAME OVER
@@ -435,12 +468,6 @@ onValue(ref(db, "room"), (snap) => {
         return; 
     } else {
         gameOverModal.classList.add("hidden");
-    }
-
-    if(isHost) {
-        hostControls.classList.remove("hidden");
-        endDayBtn.classList.toggle("hidden", phase !== "day");
-        hostFeed.classList.remove("hidden");
     }
 
     const isDealt = data.deckDealt === true;
@@ -543,7 +570,6 @@ onValue(ref(db, "room"), (snap) => {
     }
 });
 
-// --- HELPERS ---
 function createBtn(container, name, pid, btn, datasetKey) {
     const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
     if(existing) return;
@@ -559,6 +585,9 @@ function createBtn(container, name, pid, btn, datasetKey) {
     });
     container.appendChild(b);
 }
+
+window.closeModal = () => document.getElementById("roleModal").style.display = "none";
+function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
 
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
