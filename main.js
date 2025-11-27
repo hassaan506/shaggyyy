@@ -55,7 +55,7 @@ const deckStatus = document.getElementById("deckStatus");
 const actionPanel = document.getElementById("actionPanel");
 const votingPanel = document.getElementById("votingPanel");
 
-// NIGHT RESULT MODAL ELEMENTS
+// Night Result
 const nightResultModal = document.getElementById("nightResultModal");
 const nrCardInner = document.getElementById("nrCardInner");
 const nrIcon = document.getElementById("nrIcon");
@@ -133,7 +133,6 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
-// SOFT RESET
 async function performSoftReset() {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
@@ -183,8 +182,38 @@ softResetBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS
+// 3. HOST CONTROLS & EVENT DELEGATION (KEY FIX)
 // --------------------------------------------------
+// Use Delegation for robust buttons
+playersList.addEventListener('click', (e) => {
+    const target = e.target;
+    
+    // KICK BUTTON
+    if (target.classList.contains('kickBtn')) {
+        e.stopPropagation();
+        const pid = target.dataset.pid;
+        const name = target.dataset.name;
+        if(confirm(`Kick ${name}?`)) remove(ref(db, `room/players/${pid}`));
+        return;
+    }
+
+    // LATE DEAL BUTTON
+    if (target.classList.contains('lateDealBtn')) {
+        e.stopPropagation();
+        const pid = target.dataset.pid;
+        // Instantly assign civilian
+        update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
+        return;
+    }
+
+    // CARD FLIP (Only if not clicking a button)
+    const card = target.closest('.playerCard');
+    if (card && !target.closest('button')) {
+        // Handle visual flip logic if needed, or open modal
+        // Currently handled by onclick in HTML generation, but could move here.
+    }
+});
+
 shuffleBtn.addEventListener('click', async () => {
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
@@ -232,7 +261,7 @@ nightBtn.addEventListener('click', () => {
     remove(ref(db, "room/pendingResults"));
 });
 
-// --- NEW NIGHT RESULT ANIMATION LOGIC ---
+// DAY TRANSITION & ANIMATION
 dayBtn.addEventListener('click', async () => {
     try {
         const nightSnap = await get(ref(db, "room/night"));
@@ -241,7 +270,6 @@ dayBtn.addEventListener('click', async () => {
         const players = playersSnap.val();
         if (!players) throw new Error("No players found");
 
-        // Logic Calculation (Same as before)
         const mafiaVotesRaw = night.mafiaVotes || {};
         let voteCounts = {};
         let grandmaVotes = 0;
@@ -295,8 +323,7 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Bulletproof Vest";
         }
 
-        // --- ANIMATION TRIGGER (Instead of Alert) ---
-        // 1. Populate Modal Data
+        // TRIGGER MODAL (No Alert)
         if (finalNightDeathId) {
             nrTitle.innerText = "TRAGEDY!";
             nrIcon.innerText = "💀";
@@ -323,14 +350,10 @@ dayBtn.addEventListener('click', async () => {
             document.querySelector('.flip-card-back').className = "flip-card-back safe";
         }
 
-        // 2. Show Modal
-        nrCardInner.classList.remove("flipped"); // Reset state
+        nrCardInner.classList.remove("flipped");
         nightResultModal.classList.remove("hidden");
-        
-        // 3. Trigger Flip Animation after slight delay
         setTimeout(() => { nrCardInner.classList.add("flipped"); }, 100);
 
-        // 4. Update Database
         const resetVests = {};
         Object.keys(players).forEach(pid => {
             resetVests[`room/players/${pid}/vestActive`] = false;
@@ -341,14 +364,14 @@ dayBtn.addEventListener('click', async () => {
         await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null });
         await remove(ref(db, "room/votes")); 
         await set(ref(db, "room/gamePhase"), "day");
-
+    
     } catch (e) {
         console.error(e);
-        alert("System Error: " + e.message);
+        // Alert only on CRITICAL error
+        alert("System Error: " + e.message); 
     }
 });
 
-// Close Result Modal
 nrCloseBtn.addEventListener('click', () => {
     nightResultModal.classList.add("hidden");
 });
@@ -388,7 +411,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS
+// 4. PLAYER ACTIONS & CHAT
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -565,23 +588,20 @@ onValue(ref(db, "room"), (snap) => {
             div.classList.add("playerCard");
             
             if(isHost) {
+                // FIXED KICK: GENERATE DATA ATTRIBUTES
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
-                kickBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if(confirm(`Kick ${p.name}?`)) remove(ref(db, `room/players/${pid}`));
-                };
+                kickBtn.dataset.pid = pid; // Store ID for delegation
+                kickBtn.dataset.name = p.name;
                 div.appendChild(kickBtn);
 
+                // FIXED LATE DEAL
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
                     lateDealBtn.innerText = "🃏 Deal Entry";
-                    lateDealBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
-                    };
+                    lateDealBtn.dataset.pid = pid; // Store ID for delegation
                     div.appendChild(lateDealBtn);
                 }
             }
