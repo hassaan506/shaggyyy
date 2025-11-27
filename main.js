@@ -36,7 +36,6 @@ const scoreboard = document.getElementById("scoreboard");
 const scoreTown = document.getElementById("scoreTown");
 const scoreMafia = document.getElementById("scoreMafia");
 
-// Controls
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
 const hardResetBtn = document.getElementById("hardResetBtn");
@@ -44,7 +43,6 @@ const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
 const endDayBtn = document.getElementById("endVoteBtn");
 
-// Panels
 const gameOverModal = document.getElementById("gameOverModal");
 const nextRoundBtn = document.getElementById("nextRoundBtn");
 const modalExitBtn = document.getElementById("modalExitBtn");
@@ -54,19 +52,16 @@ const deckStatus = document.getElementById("deckStatus");
 const actionPanel = document.getElementById("actionPanel");
 const votingPanel = document.getElementById("votingPanel");
 
-// Chat
 const mafiaChat = document.getElementById("mafiaChat");
 const chatHistory = document.getElementById("chatHistory");
 const chatInput = document.getElementById("chatInput");
 const sendChatBtn = document.getElementById("sendChatBtn");
 
-// Buttons
 const submitActionBtn = document.getElementById("submitActionBtn");
 const submitVoteBtn = document.getElementById("submitVoteBtn");
 const actionTargets = document.getElementById("actionTargets");
 const voteTargets = document.getElementById("voteTargets");
 
-// State
 let allPlayersCache = {}; 
 let myCurrentRole = null;
 
@@ -90,10 +85,7 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
-        
-        // Initialize Vest Stats
-        await set(refP, { name, role: null, statusTags: "", vestUsed: false, vestActive: false });
-        
+        await set(refP, { name, role: null, statusTags: "" });
         screenJoin.classList.add("hidden");
         location.reload();
     } catch (e) {
@@ -125,14 +117,12 @@ nextRoundBtn.addEventListener('click', async () => {
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val() || {};
         const updates = {};
-        
         Object.keys(players).forEach(pid => {
             updates[`room/players/${pid}/role`] = null;
             updates[`room/players/${pid}/statusTags`] = "";
-            updates[`room/players/${pid}/vestUsed`] = false;   // Reset Vest Usage
-            updates[`room/players/${pid}/vestActive`] = false; // Reset Active Vest
+            updates[`room/players/${pid}/vestUsed`] = false;
+            updates[`room/players/${pid}/vestActive`] = false;
         });
-
         updates["room/night"] = null;
         updates["room/votes"] = null;
         updates["room/pendingResults"] = null;
@@ -143,7 +133,6 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/hasShuffled"] = false;
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
-
         await update(ref(db), updates);
         localStorage.setItem("isHost", "false");
         location.reload();
@@ -186,12 +175,7 @@ dealBtn.addEventListener('click', async () => {
         [roles[i], roles[j]] = [roles[j], roles[i]];
     }
     players.forEach(([pid], i) => {
-        update(ref(db, `room/players/${pid}`), { 
-            role: roles[i], 
-            statusTags: "",
-            vestUsed: false,
-            vestActive: false
-        });
+        update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
     });
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
@@ -203,7 +187,6 @@ nightBtn.addEventListener('click', () => {
     remove(ref(db, "room/pendingResults"));
 });
 
-// --- DAY LOGIC (HOST CALCULATION) ---
 dayBtn.addEventListener('click', async () => {
     const nightSnap = await get(ref(db, "room/night"));
     const night = nightSnap.val() || {};
@@ -233,7 +216,6 @@ dayBtn.addEventListener('click', async () => {
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
-    // 1. Grandma Logic
     if (grandmaVotes > 0) {
         if (grandmaVotes >= 2) {
             const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
@@ -248,7 +230,6 @@ dayBtn.addEventListener('click', async () => {
         }
     }
 
-    // 2. Doctor Save
     let wasSaved = false;
     let savedName = "Unknown";
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
@@ -258,15 +239,13 @@ dayBtn.addEventListener('click', async () => {
         nightDeathReason = "Saved by Doctor";
     }
 
-    // 3. Bulletproof Vest Check (CIVILIAN ONLY)
     let vestSaved = false;
     if (finalNightDeathId && players[finalNightDeathId].vestActive) {
         vestSaved = true;
-        finalNightDeathId = null; // Cancel Death
+        finalNightDeathId = null;
         nightDeathReason = "Bulletproof Vest";
     }
 
-    // 4. Alert Host
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
     if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
     else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
@@ -274,7 +253,6 @@ dayBtn.addEventListener('click', async () => {
     else alertMsg += `🛡️ No one died.`;
     alert(alertMsg);
 
-    // 5. Cleanup: Remove Vests for everyone (One night only)
     const resetVests = {};
     Object.keys(players).forEach(pid => {
         resetVests[`room/players/${pid}/vestActive`] = false;
@@ -322,7 +300,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS & CHAT
+// 4. PLAYER ACTIONS
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -351,10 +329,6 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 submitActionBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
-    
-    // VEST LOGIC (Self Action)
-    // This listener handles targets. Vest is handled by a separate button click (see below).
-    
     const target = submitActionBtn.dataset.target;
     if(!target) return alert("Select a target first!");
 
@@ -385,7 +359,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN UI LOOP
+// 5. MAIN SYNC LOOP (Visual Logic Update)
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -408,12 +382,26 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
+    // --- HOST STATUS ---
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
         document.getElementById("hostStatus").style.color = "#28a745";
     }
 
+    // --- DAY / NIGHT THEME SWITCHER ---
+    document.getElementById("phaseText").innerText = phase;
+    if(phase === "night") {
+        document.body.className = "night";
+        actionTargets.innerHTML = "";
+    } else if (phase === "day") {
+        document.body.className = "day";
+        voteTargets.innerHTML = "";
+    } else {
+        document.body.className = ""; // Neutral (Waiting/Lobby)
+    }
+
+    // --- SCREEN NAVIGATION ---
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
@@ -427,8 +415,13 @@ onValue(ref(db, "room"), (snap) => {
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
-        if (isHost) nextRoundBtn.classList.remove("hidden");
-        else nextRoundBtn.classList.add("hidden");
+        if (isHost) {
+            nextRoundBtn.classList.remove("hidden");
+            document.getElementById("waitingForHostText").classList.add("hidden");
+        } else {
+            nextRoundBtn.classList.add("hidden");
+            document.getElementById("waitingForHostText").classList.remove("hidden");
+        }
         modalExitBtn.onclick = () => { localStorage.clear(); location.reload(); };
         return; 
     } else {
@@ -450,19 +443,12 @@ onValue(ref(db, "room"), (snap) => {
         const deckImg = document.querySelector(".cardDeck");
         if(deckImg) data.isShuffling ? deckImg.classList.add("shaking") : deckImg.classList.remove("shaking");
         deckStatus.innerText = data.isShuffling ? "Shuffling..." : "Ready";
-        
         if(isHost) {
             const canDeal = data.hasShuffled === true;
             dealBtn.disabled = !canDeal;
             dealBtn.style.opacity = canDeal ? "1" : "0.5";
         }
     }
-
-    document.getElementById("phaseText").innerText = phase;
-    document.body.className = phase === "night" ? "night" : "day";
-    
-    if(phase !== "night") { actionTargets.innerHTML = ""; }
-    if(phase !== "day") voteTargets.innerHTML = "";
 
     playersList.innerHTML = "";
     if (data.players) {
@@ -535,13 +521,12 @@ onValue(ref(db, "room"), (snap) => {
                     if (amIMafia && nightData.mafiaVotes && nightData.mafiaVotes[myId]) alreadyVoted = true;
                     if (myCurrentRole === "doctor" && nightData.doctorSave) alreadyVoted = true;
                     if (myCurrentRole === "detective" && nightData.detectiveAction && nightData.detectiveAction[myId]) alreadyVoted = true;
-                    if (myCurrentRole === "civilian" && me.vestActive) alreadyVoted = true; // Vest logic
+                    if (myCurrentRole === "civilian" && me.vestActive) alreadyVoted = true;
 
                     if (alreadyVoted) {
                         actionPanel.classList.remove("hidden");
                         actionPanel.innerHTML = "<h3>Night Action</h3><p>Action Submitted.</p>";
                     } else {
-                        // Reset Panel
                         if(actionPanel.innerHTML.includes("Action Submitted")) actionPanel.innerHTML = `<h3>Night Action</h3><p id="actionInstruction">Select a target...</p><div id="actionTargets" class="targets"></div><button id="submitActionBtn" class="primary" disabled>Submit Action</button>`;
                         
                         let canTarget = false;
@@ -549,9 +534,7 @@ onValue(ref(db, "room"), (snap) => {
                         else if (myCurrentRole === "doctor") canTarget = true;
                         else if (myCurrentRole === "detective" && !isMe) canTarget = true;
 
-                        // --- CIVILIAN VEST BUTTON (Self only) ---
                         if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
-                            // Check if button already exists to prevent dupes
                             if(!document.getElementById("vestBtn")) {
                                 const vestBtn = document.createElement("button");
                                 vestBtn.id = "vestBtn";
@@ -560,10 +543,9 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
-                                        // Visual feedback handled by 'alreadyVoted' loop on next refresh
                                     }
                                 };
-                                actionPanel.prepend(vestBtn); // Add to top of action panel
+                                actionPanel.prepend(vestBtn);
                                 actionPanel.classList.remove("hidden");
                             }
                         }
