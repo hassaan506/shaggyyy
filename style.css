@@ -1,123 +1,224 @@
 /* ---------------------------------------------
-    1. GENERAL & DARK THEME RESET
+    1. GENERAL & ANIMATIONS
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
 body { 
-    background-color: #121212; 
-    background-image: radial-gradient(circle at center, #1f1f1f 0%, #000000 100%);
-    color: #ddd; 
     min-height: 100vh;
     padding-top: 50px; /* Space for Scoreboard */
+    /* Smooth fade between Day and Night */
+    transition: background 1.0s ease, color 1.0s ease;
 }
-
-/* Optional Phase Tints */
-body.day { /* Default Dark */ }
-body.night { box-shadow: inset 0 0 100px rgba(0,0,0,0.9); }
 
 button { touch-action: manipulation; } 
 .hidden { display: none !important; }
 .screen { width: 100%; min-height: 90vh; display: flex; flex-direction: column; align-items: center; padding: 15px; }
 
 /* ---------------------------------------------
-    2. JOIN SCREEN (NOIR STYLE)
+    2. THEMES (DAY VS NIGHT)
+--------------------------------------------- */
+
+/* ☀️ DAY MODE: Bright White & Grey */
+body.day {
+    background-color: #f4f4f4;
+    background-image: linear-gradient(to bottom, #ffffff, #e0e0e0);
+    color: #333;
+}
+
+body.day .joinCard, 
+body.day .playerCard, 
+body.day .topBar {
+    background: #ffffff;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    color: #000;
+}
+
+body.day .gameTitle {
+    color: #d32f2f;
+    text-shadow: 2px 2px 0px #aaa;
+}
+
+/* 🌙 NIGHT MODE: Pitch Black & Eerie Blue */
+body.night {
+    background-color: #000000;
+    background-image: radial-gradient(circle at center, #0a0a15 0%, #000000 90%);
+    color: #aaccff; /* Ghostly Blue Text */
+}
+
+body.night .joinCard, 
+body.night .playerCard, 
+body.night .topBar {
+    background: #050510; /* Very Dark Blue */
+    border: 1px solid #1c1c4f;
+    box-shadow: 0 0 15px rgba(0, 50, 255, 0.15); /* Blue Glow */
+    color: #fff;
+}
+
+body.night .gameTitle {
+    color: #3b5bdb;
+    text-shadow: 0 0 15px rgba(59, 91, 219, 0.8);
+}
+
+/* ---------------------------------------------
+    3. JOIN SCREEN & LOBBY
 --------------------------------------------- */
 .joinCard { 
-    background: #1e1e1e; 
     padding: 40px; 
     border-radius: 12px; 
     text-align: center; 
     margin-top: 10vh; 
-    box-shadow: 0 0 30px rgba(211, 47, 47, 0.15); /* Red Glow */
-    width: 90%; 
-    max-width: 400px; 
-    border: 1px solid #333;
+    width: 90%; max-width: 400px; 
+    transition: background 1s, border 1s, box-shadow 1s;
 }
 
 .gameTitle {
     font-family: 'Creepster', cursive;
     font-size: 56px;
-    color: #d32f2f; /* Blood Red */
     letter-spacing: 3px;
     margin-bottom: 5px;
-    text-shadow: 4px 4px 0px #000;
+    transition: color 1s, text-shadow 1s;
 }
 
 .author {
-    font-size: 14px;
-    font-weight: bold;
-    color: #888;
-    margin-bottom: 30px;
-    font-style: italic;
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-    display: inline-block;
+    font-size: 14px; font-weight: bold; opacity: 0.7;
+    margin-bottom: 30px; padding-bottom: 10px;
+    border-bottom: 1px solid #888; display: inline-block;
 }
 
 .joinCard input { 
-    padding: 15px; 
-    margin: 15px 0; 
-    width: 100%; 
-    background: #111;
-    border: 1px solid #444; 
-    color: #fff; 
-    border-radius: 6px; 
-    font-size: 16px; 
-    text-align: center; 
+    padding: 15px; margin: 15px 0; width: 100%; 
+    border-radius: 6px; font-size: 16px; text-align: center; 
 }
-.joinCard input:focus { outline: none; border-color: #d32f2f; }
+body.day .joinCard input { background: #f9f9f9; border: 1px solid #ccc; color: #333; }
+body.night .joinCard input { background: #111; border: 1px solid #444; color: #fff; }
 
 /* ---------------------------------------------
-    3. BUTTONS
+    4. BUTTONS
 --------------------------------------------- */
 .primary { 
-    width: 100%; 
-    padding: 15px; 
-    background: #d32f2f; 
-    color: white; 
-    border: none; 
-    border-radius: 6px; 
-    margin-top: 10px; 
-    font-size: 18px; 
-    font-weight: bold; 
-    cursor: pointer; 
-    transition: transform 0.1s, background 0.2s; 
+    width: 100%; padding: 15px; 
+    background: #d32f2f; color: white; 
+    border: none; border-radius: 6px; 
+    margin-top: 10px; font-size: 18px; 
+    font-weight: bold; cursor: pointer; 
+    transition: 0.2s;
 }
-.primary:hover { background: #b71c1c; }
-.primary:active { transform: scale(0.98); }
-.primary:disabled { background: #555; cursor: not-allowed; opacity: 0.7; }
+.primary:hover { background: #b71c1c; transform: scale(1.02); }
+.primary:disabled { background: #888; cursor: not-allowed; opacity: 0.7; transform: none; }
 
-.exitBtn { margin-top: 30px; padding: 10px 20px; background: #333; color: #fff; border: 1px solid #555; border-radius: 5px; cursor: pointer; }
+/* KICK BUTTON (Fixed Z-Index) */
+.kickBtn {
+    position: absolute; top: -10px; right: -10px;
+    background: #ff0000; color: white;
+    border: 2px solid #fff; border-radius: 50%;
+    width: 28px; height: 28px;
+    font-weight: bold; font-size: 14px;
+    cursor: pointer; 
+    z-index: 100; /* Ensure clickable */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+}
+.kickBtn:active { transform: scale(0.9); }
+
+/* LATE DEAL BUTTON */
+.lateDealBtn {
+    margin-top: 8px; padding: 6px 10px;
+    background: #28a745; color: white;
+    border: none; border-radius: 4px;
+    font-size: 12px; cursor: pointer; 
+    z-index: 100; /* Ensure clickable */
+    position: relative;
+}
+
+/* SKIP BUTTON */
+.skipBtn {
+    background: #6c757d !important; border: 1px solid #555 !important;
+    color: #fff !important; font-style: italic;
+}
+.skipBtn.selected {
+    background: #343a40 !important; border-color: #fff !important;
+}
 
 /* ---------------------------------------------
-    4. GAME UI & TOP BAR
+    5. GAME UI ELEMENTS
 --------------------------------------------- */
 .topBar { 
     width: 100%; max-width: 1200px; margin-bottom: 20px; 
-    background: rgba(30,30,30,0.95); 
     padding: 15px; border-radius: 12px; 
-    border-bottom: 2px solid #d32f2f;
     display: flex; flex-direction: column; gap: 10px; 
+    transition: background 1s, border 1s;
 }
 
 .btnGroup { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.btnGroup button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 5px; background: #444; color: white; border: 1px solid #666; font-size: 14px; }
-.btnGroup button:hover { background: #666; }
-.btnGroup button:disabled { opacity: 0.5; cursor: not-allowed; }
+.btnGroup button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 5px; background: #007bff; color: white; font-size: 14px; }
+body.night .btnGroup button { background: #444; border: 1px solid #666; }
 
-.hostFeed { background: #000; color: #0f0; padding: 10px; border-radius: 6px; margin-top: 10px; font-family: monospace; max-height: 100px; overflow-y: auto; text-align: left; border: 1px solid #333; }
-#liveVoteList { list-style: none; font-size: 12px; }
+.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; }
+
+.playerCard { 
+    padding: 10px; border-radius: 8px; text-align: center; 
+    position: relative; cursor: pointer;
+    transition: background 1s, border 1s, box-shadow 1s;
+}
+.playerCard h3 { font-size: 14px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.playerCard img { width: 80px; height: 115px; border-radius: 4px; object-fit: cover; }
+.emptySlot { width: 80px; height: 115px; border: 2px dashed #aaa; border-radius: 4px; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #777; }
 
 /* ---------------------------------------------
-    5. TABLE & DECK
+    6. PANELS & SCOREBOARD
+--------------------------------------------- */
+.rightPanel { display: flex; flex-direction: column; gap: 15px; }
+.panel { padding: 15px; border-radius: 8px; }
+body.day .panel { background: rgba(0,0,0,0.05); border: 1px solid #ccc; }
+body.night .panel { background: rgba(255,255,255,0.05); border: 1px solid #333; }
+
+.targets button { padding: 10px; border: 1px solid #ccc; background: #fff; color: #333; border-radius: 5px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 5px; }
+body.night .targets button { background: #333; color: #fff; border-color: #555; }
+.targets button.selected { background: #d32f2f !important; color: white !important; border-color: #ff5252; }
+
+/* Scoreboard is always Dark */
+.scoreboard {
+    position: fixed; top: 0; left: 0; width: 100%;
+    background: #111; color: white;
+    display: flex; justify-content: center; gap: 20px;
+    padding: 8px; z-index: 1000; border-bottom: 1px solid #333;
+}
+.townScore { color: #4dabf7; font-weight: bold; }
+.mafiaScore { color: #e03131; font-weight: bold; }
+
+/* ---------------------------------------------
+    7. MODALS & CHAT
+--------------------------------------------- */
+#roleModal, #gameOverModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
+.modalContent { background: #fff; padding: 30px; border-radius: 12px; text-align: center; width: 85%; max-width: 350px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+body.night .modalContent { background: #222; color: #fff; border: 1px solid #d32f2f; }
+
+#mafiaChat {
+    position: fixed; bottom: 20px; left: 20px;
+    width: 260px; height: 300px;
+    background: #1a1a1a; border: 2px solid #d32f2f;
+    border-radius: 8px; display: flex; flex-direction: column;
+    z-index: 1500;
+}
+.chatHeader { background: #d32f2f; color: white; padding: 8px; font-weight: bold; font-size: 13px; text-align: center; }
+#chatHistory { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; background: #222; }
+.chatMsg { padding: 6px 10px; border-radius: 12px; font-size: 12px; max-width: 85%; color: #eee; }
+.chatMsg.me { align-self: flex-end; background: #d32f2f; }
+.chatMsg.them { align-self: flex-start; background: #444; }
+.chatInputWrapper { display: flex; border-top: 1px solid #444; padding: 5px; background: #1a1a1a; }
+#chatInput { flex: 1; background: #333; border: none; color: white; padding: 8px; }
+
+/* ---------------------------------------------
+    8. ANIMATIONS
 --------------------------------------------- */
 .tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
 .cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
-.deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); position: absolute; top:0; left:0; transition: transform 0.2s; }
+.deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: absolute; top:0; left:0; transition: transform 0.2s; }
 .layer1 { transform: rotate(3deg); z-index: -1; }
 .layer2 { transform: rotate(-3deg); z-index: -2; }
 
-/* ANIMATION */
 .shaking { animation: shake 0.5s infinite linear; }
 @keyframes shake {
   0% { transform: rotate(0deg) translate(0,0); }
@@ -127,125 +228,8 @@ button { touch-action: manipulation; }
   100% { transform: rotate(0deg); }
 }
 
-/* ---------------------------------------------
-    6. PLAYERS GRID
---------------------------------------------- */
-.gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
-.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; }
-
-.playerCard { 
-    background: #2a2a2a; 
-    padding: 10px; 
-    border-radius: 8px; 
-    text-align: center; 
-    border: 1px solid #444; 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
-    position: relative; 
-    cursor: pointer;
-}
-.playerCard h3 { font-size: 14px; margin-bottom: 5px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.playerCard img { width: 80px; height: 115px; border-radius: 4px; object-fit: cover; border: 1px solid #000; }
-.emptySlot { width: 80px; height: 115px; border: 2px dashed #555; border-radius: 4px; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #777; }
-
-/* ---------------------------------------------
-    7. PANELS & MODALS
---------------------------------------------- */
-.rightPanel { display: flex; flex-direction: column; gap: 15px; }
-.panel { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid #333; }
-
-.targets { display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow-y: auto; }
-.targets button { padding: 10px; border: 1px solid #444; background: #333; color: white; border-radius: 5px; cursor: pointer; text-align: left; }
-.targets button:hover { background: #444; }
-.targets button.selected { background: #d32f2f; border-color: #ff5252; }
-
-/* MODAL */
-#roleModal, #gameOverModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
-#gameOverModal.hidden { display: none; }
-.modalContent { background: #222; padding: 30px; border-radius: 12px; text-align: center; width: 85%; max-width: 350px; border: 2px solid #d32f2f; color: white; }
-#gameOverModal h1 { font-family: 'Creepster', cursive; font-size: 40px; color: #d32f2f; }
-
-/* ---------------------------------------------
-    8. SPECIAL FEATURES (Chat, Score, Lobby)
---------------------------------------------- */
-
-/* SCOREBOARD */
-.scoreboard {
-    position: fixed; top: 0; left: 0; width: 100%;
-    background: #000; color: white;
-    display: flex; justify-content: center; gap: 20px;
-    padding: 8px; z-index: 1000;
-    border-bottom: 1px solid #333;
-    font-family: sans-serif;
-}
-.townScore { color: #4dabf7; font-weight: bold; }
-.mafiaScore { color: #e03131; font-weight: bold; }
-.vs { opacity: 0.5; font-size: 12px; align-self: center; }
-
-/* MAFIA CHAT */
-#mafiaChat {
-    position: fixed; bottom: 20px; left: 20px;
-    width: 260px; height: 300px;
-    background: #1a1a1a;
-    border: 2px solid #d32f2f;
-    border-radius: 8px;
-    display: flex; flex-direction: column;
-    z-index: 1500;
-    box-shadow: 0 0 15px rgba(0,0,0,0.8);
-}
-#mafiaChat.hidden { display: none !important; }
-.chatHeader { background: #d32f2f; color: white; padding: 8px; font-weight: bold; font-size: 13px; text-align: center; }
-#chatHistory { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; background: #222; }
-.chatMsg { padding: 6px 10px; border-radius: 12px; font-size: 12px; max-width: 85%; word-wrap: break-word; color: #eee; }
-.chatMsg.me { align-self: flex-end; background: #d32f2f; }
-.chatMsg.them { align-self: flex-start; background: #444; }
-.chatInputWrapper { display: flex; border-top: 1px solid #444; padding: 5px; background: #1a1a1a; }
-#chatInput { flex: 1; background: #333; border: none; color: white; padding: 8px; border-radius: 4px; outline: none; }
-#sendChatBtn { background: none; border: none; color: #d32f2f; font-size: 18px; cursor: pointer; padding: 0 10px; }
-
-/* LOBBY SCREEN */
-#screenLobby { background: #121212; display: flex; justify-content: center; align-items: center; }
-#lobbyControls { margin-top: 20px; }
-#lobbyControls button { width: 100%; padding: 15px; font-size: 18px; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,0.5); }
-
-/* ---------------------------------------------
-    9. NEW BUTTONS (Kick, Deal, Skip)
---------------------------------------------- */
-.kickBtn {
-    position: absolute; top: -8px; right: -8px;
-    background: #d32f2f; color: white;
-    border: 2px solid #222; border-radius: 50%;
-    width: 26px; height: 26px;
-    font-weight: bold; font-size: 12px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    z-index: 10;
-}
-.kickBtn:hover { background: red; transform: scale(1.1); }
-
-.lateDealBtn {
-    margin-top: 5px; padding: 4px 8px;
-    background: #28a745; color: white;
-    border: none; border-radius: 4px;
-    font-size: 11px; cursor: pointer;
-}
-
-.skipBtn {
-    background: #444 !important;
-    border: 1px solid #666 !important;
-    color: #aaa !important;
-    font-style: italic;
-}
-.skipBtn.selected {
-    background: #fff !important;
-    color: #000 !important;
-    border-color: #fff !important;
-}
-
-/* RESPONSIVE */
 @media (max-width: 768px) {
     .gameContainer { grid-template-columns: 1fr; }
     .rightPanel { order: -1; } 
-    .topBar { font-size: 12px; }
     #mafiaChat { width: 200px; height: 220px; bottom: 70px; left: 10px; }
 }
