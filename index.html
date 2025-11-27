@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
     <title>Mafia Wars by Dr Shaggyyy</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=7.0">
+    <link rel="stylesheet" href="style.css?v=8.0">
 </head>
-<body class="day">
+<body class="">
+
+    <div id="skyContainer">
+        <div class="sun"></div>
+        <div class="moon"></div>
+    </div>
 
     <div id="scoreboard" class="scoreboard hidden">
         <span class="townScore">Town: <b id="scoreTown">0</b></span>
@@ -26,19 +31,20 @@
         </div>
     </div>
 
-<div id="screenLobby" class="screen hidden">
-    <div class="joinCard">
-        <h2 style="font-size: 32px; margin-bottom: 10px;">Game Lobby</h2>
-        <p>Waiting for a Host...</p> 
-        <hr style="border-color: #444; opacity: 0.3; margin: 20px 0;">
-        
-        <div id="lobbyControls">
-            <p style="font-size: 14px; opacity: 0.8; margin: 0;">Is this your game room?</p>
-            <button id="claimHostBtn">👑 I will be Host</button>
-            <p>Players, please wait for the Host to start.</p>
+    <div id="screenLobby" class="screen hidden">
+        <div class="joinCard">
+            <h2 style="font-size: 32px; margin-bottom: 10px;">Game Lobby</h2>
+            <p>Waiting for a Host...</p>
+            <hr style="border-color: #444; opacity: 0.3; margin: 20px 0;">
+            
+            <div id="lobbyControls">
+                <p style="font-size: 14px; opacity: 0.8; margin: 0;">Is this your game room?</p>
+                <button id="claimHostBtn">👑 I will be Host</button>
+                <p>Players, please wait for the Host to start.</p>
+            </div>
         </div>
     </div>
-</div>
+
     <div id="screenGame" class="screen hidden">
         <div class="topBar">
             <div class="hostSection">
@@ -83,12 +89,14 @@
 
                 <div id="actionPanel" class="panel hidden">
                     <h3>Night Action</h3>
+                    <p id="actionInstruction">Select a target...</p>
                     <div id="actionTargets" class="targets"></div>
                     <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
                 </div>
 
                 <div id="votingPanel" class="panel hidden">
                     <h3>Day Vote</h3>
+                    <p id="voteInstruction">Who to eliminate?</p>
                     <div id="voteTargets" class="targets"></div>
                     <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
                 </div>
@@ -109,11 +117,11 @@
         <div class="modalContent">
             <h1 id="winMessage">GAME OVER</h1>
             
-            <button id="nextRoundBtn" class="hidden" style="background: #28a745; color: white; width: 100%; padding: 15px; font-size: 18px;">🔄 Start Next Round (Soft Reset)</button>
+            <button id="nextRoundBtn" class="hidden" style="background: #28a745; color: white; width: 100%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; cursor: pointer; margin-bottom: 10px;">🔄 Start Next Round</button>
             
             <p id="waitingForHostText" class="hidden">Waiting for Host to restart...</p>
             
-            <button id="modalExitBtn" style="background: #333; color: white; width: 100%; margin-top: 10px;">🚪 Leave Room</button>
+            <button id="modalExitBtn" style="background: #333; color: white; width: 100%; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #555; cursor: pointer;">🚪 Leave Room</button>
         </div>
     </div>
 
@@ -122,12 +130,10 @@
             <h2 id="modalName">Player</h2>
             <img id="modalRole" src="" alt="Role" />
             <p id="modalRoleText"></p>
-            <button class="closeModal" onclick="closeModal()">Close</button>
+            <button class="closeModal" onclick="closeModal()" style="margin-top:15px; padding:8px 20px; background:#333; color:white; border:none; border-radius:5px; cursor:pointer;">Close</button>
         </div>
     </div>
 
-    <script type="module" src="main.js?v=7.0"></script>
+    <script type="module" src="main.js?v=8.0"></script>
 </body>
 </html>
-
-
