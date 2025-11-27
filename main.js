@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
 // --- CONFIGURATION ---
-// ⚠️ REPLACE WITH YOUR FIREBASE CONFIG
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -77,7 +76,6 @@ let myCurrentRole = null;
 // 1. INITIALIZATION & JOIN
 // --------------------------------------------------
 
-// Auto-Login Check
 if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
     screenJoin.classList.add("hidden");
 } else {
@@ -98,7 +96,6 @@ firstJoinBtn.addEventListener('click', async () => {
     try {
         const refP = push(ref(db, "room/players"));
         
-        // Save local ID temporarily. If they become host, this changes.
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
@@ -117,26 +114,30 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST CLAIM (FIXED)
+// 2. LOBBY & HOST CLAIM (ROBUST FIX)
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
 
-    if(!myName || !myTempId) return location.reload();
+    if(!myName) return location.reload();
 
     // 1. Set Host Name
     await set(ref(db, "room/host"), { name: myName });
     
-    // 2. REMOVE MYSELF FROM PLAYERS LIST (The Fix)
-    await remove(ref(db, `room/players/${myTempId}`));
+    // 2. Force Remove Player Entry from DB
+    if (myTempId && myTempId !== "HOST") {
+        try {
+            await remove(ref(db, `room/players/${myTempId}`));
+        } catch (e) { console.log("Cleanup error", e); }
+    }
 
-    // 3. Start Game State
+    // 3. Set Game State
     await set(ref(db, "room/gamePhase"), "Waiting");
     
     // 4. Update Local Storage
     localStorage.setItem("isHost", "true");
-    localStorage.setItem("playerId", "HOST"); // Special ID for Host
+    localStorage.setItem("playerId", "HOST");
     
     location.reload();
 });
@@ -147,13 +148,11 @@ nextRoundBtn.addEventListener('click', async () => {
         const players = playersSnap.val() || {};
 
         const updates = {};
-        // Reset Players
         Object.keys(players).forEach(pid => {
             updates[`room/players/${pid}/role`] = null;
             updates[`room/players/${pid}/statusTags`] = "";
         });
 
-        // Reset Game Data
         updates["room/night"] = null;
         updates["room/votes"] = null;
         updates["room/pendingResults"] = null;
@@ -162,17 +161,12 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/deckDealt"] = false;
         updates["room/isShuffling"] = false;
         
-        // Go to Lobby
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
 
         await update(ref(db), updates);
         
-        // Host also resets to become a potential player or host again
         localStorage.setItem("isHost", "false");
-        // We keep "HOST" as playerId until they rejoin as player, 
-        // OR we force a reload to login screen. 
-        // Better: Force reload.
         location.reload();
     }
 });
@@ -408,7 +402,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN SYNC LOOP
+// 5. MAIN SYNC LOOP (WITH VISUAL FIX)
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -431,7 +425,6 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // LOBBY PHASE (Or no host)
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
@@ -439,21 +432,12 @@ onValue(ref(db, "room"), (snap) => {
         return;
     } else {
         screenLobby.classList.add("hidden");
-        
-        // HOST VIEW (No Game Screen logic needed, just admin tools)
-        if (isHost) {
-            screenGame.classList.remove("hidden");
-            hostControls.classList.remove("hidden");
-            endDayBtn.classList.toggle("hidden", phase !== "day");
-            hostFeed.classList.remove("hidden");
-        } 
-        // PLAYER VIEW
-        else if (myId && myId !== "HOST") {
+        // Only show game screen if I am Host OR I have a valid Player ID
+        if (isHost || (myId && myId !== "HOST")) {
             screenGame.classList.remove("hidden");
         }
     }
 
-    // GAME OVER
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
@@ -468,6 +452,12 @@ onValue(ref(db, "room"), (snap) => {
         return; 
     } else {
         gameOverModal.classList.add("hidden");
+    }
+
+    if(isHost) {
+        hostControls.classList.remove("hidden");
+        endDayBtn.classList.toggle("hidden", phase !== "day");
+        hostFeed.classList.remove("hidden");
     }
 
     const isDealt = data.deckDealt === true;
@@ -500,6 +490,10 @@ onValue(ref(db, "room"), (snap) => {
         else mafiaChat.classList.add("hidden");
 
         Object.entries(data.players).forEach(([pid, p]) => {
+            // --- VISUAL GUARD: HIDE HOST FROM GRID ---
+            // If this player's name matches the Host's name, skip rendering.
+            if (data.host && p.name === data.host.name) return;
+
             const isMe = pid === myId;
             const targetIsMafia = (p.role === "mafia" || p.role === "godfather");
             const canSeeRole = isHost || isMe || (amIMafia && targetIsMafia);
@@ -598,17 +592,12 @@ async function checkWinCondition() {
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
-    let winner = null;
-    if (mafiaCount === 0 && activePlayers.length > 0) winner = "TOWN";
-    else if (mafiaCount > townCount && activePlayers.length > 0) winner = "MAFIA";
-
-    if (winner) {
-        const scoreSnap = await get(ref(db, "room/scoreboard"));
-        let scores = scoreSnap.val() || { town: 0, mafia: 0 };
-        if (winner === "TOWN") scores.town = (scores.town || 0) + 1;
-        else scores.mafia = (scores.mafia || 0) + 1;
-        await update(ref(db, "room/scoreboard"), scores);
-        await set(ref(db, "room/winMessage"), `${winner} WINS!`);
+    if (mafiaCount === 0 && activePlayers.length > 0) {
+        await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
+        await set(ref(db, "room/gamePhase"), "GAME OVER");
+    } 
+    else if (mafiaCount > townCount && activePlayers.length > 0) {
+        await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
     }
 }
