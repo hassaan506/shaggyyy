@@ -95,16 +95,12 @@ firstJoinBtn.addEventListener('click', async () => {
 
     try {
         const refP = push(ref(db, "room/players"));
-        
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
-
         await set(refP, { name, role: null, statusTags: "" });
-
         screenJoin.classList.add("hidden");
         location.reload();
-
     } catch (e) {
         console.error(e);
         joinStatus.innerText = "Error: " + e.message;
@@ -119,21 +115,18 @@ firstJoinBtn.addEventListener('click', async () => {
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
-
     if(!myName) return location.reload();
 
     await set(ref(db, "room/host"), { name: myName });
     
-    // Cleanup player entry
+    // Remove Host from player list to prevent "Ghost Player"
     if (myTempId && myTempId !== "HOST") {
         try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
 
     await set(ref(db, "room/gamePhase"), "Waiting");
-    
     localStorage.setItem("isHost", "true");
     localStorage.setItem("playerId", "HOST");
-    
     location.reload();
 });
 
@@ -155,30 +148,25 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/winMessage"] = null;
         updates["room/deckDealt"] = false;
         updates["room/isShuffling"] = false;
-        updates["room/hasShuffled"] = false; // Reset shuffle status
-        
+        updates["room/hasShuffled"] = false;
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
 
         await update(ref(db), updates);
-        
         localStorage.setItem("isHost", "false");
         location.reload();
     }
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS (FIXED SHUFFLE LOGIC)
+// 3. HOST CONTROLS
 // --------------------------------------------------
 shuffleBtn.addEventListener('click', async () => {
-    // 1. Start Animation
     await set(ref(db, "room/isShuffling"), true);
-    await set(ref(db, "room/hasShuffled"), false); // Disable Deal
-
-    // 2. Wait 1.5s then Stop
+    await set(ref(db, "room/hasShuffled"), false);
     setTimeout(async () => {
         await set(ref(db, "room/isShuffling"), false);
-        await set(ref(db, "room/hasShuffled"), true); // Enable Deal
+        await set(ref(db, "room/hasShuffled"), true);
     }, 1500);
 });
 
@@ -240,8 +228,9 @@ onValue(ref(db, "room/votes"), (snap) => {
         return;
     }
     Object.entries(votes).forEach(([voterId, targetId]) => {
+        const targetName = targetId === "SKIP" ? "😴 SKIP" : getName(targetId);
         const li = document.createElement("li");
-        li.innerText = `${getName(voterId)} ➝ ${getName(targetId)}`;
+        li.innerText = `${getName(voterId)} ➝ ${targetName}`;
         liveVoteList.appendChild(li);
     });
 });
@@ -282,6 +271,7 @@ dayBtn.addEventListener('click', async () => {
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
+    // Grandma Logic
     if (grandmaVotes > 0) {
         if (grandmaVotes >= 2) {
             const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
@@ -341,10 +331,16 @@ endDayBtn.addEventListener('click', async () => {
         await pushTag(pending.nightDeathId, "KILLED");
         report += `💀 Night Casualty: ${getName(pending.nightDeathId)}\n`;
     }
-    if (elimId) {
+    
+    if (elimId && elimId !== "SKIP") {
         await pushTag(elimId, "ELIMINATED");
         report += `⚖️ Voted Out: ${getName(elimId)}\n`;
+    } else if (elimId === "SKIP") {
+        report += `💤 Town voted to SKIP. No one eliminated.\n`;
+    } else {
+        report += `⚖️ Day: No majority/votes.\n`;
     }
+
     await set(ref(db, "room/publicReport"), report);
     await checkWinCondition();
 });
@@ -399,7 +395,7 @@ submitActionBtn.addEventListener('click', async () => {
 submitVoteBtn.addEventListener('click', async () => {
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
-    if(!target) return alert("Select a player first!");
+    if(!target) return alert("Select a vote option!");
     await set(ref(db, `room/votes/${pid}`), target);
 });
 
@@ -432,7 +428,7 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // --- HOST STATUS FIX ---
+    // HOST ONLINE STATUS
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
@@ -473,7 +469,6 @@ onValue(ref(db, "room"), (snap) => {
         hostFeed.classList.remove("hidden");
     }
 
-    // --- DEAL BUTTON FIX ---
     const isDealt = data.deckDealt === true;
     if (isDealt) {
         centralDeck.classList.add("hidden");
@@ -484,7 +479,6 @@ onValue(ref(db, "room"), (snap) => {
         if(deckImg) data.isShuffling ? deckImg.classList.add("shaking") : deckImg.classList.remove("shaking");
         deckStatus.innerText = data.isShuffling ? "Shuffling..." : "Ready";
         
-        // DISABLE DEAL UNTIL SHUFFLED
         if(isHost) {
             const canDeal = data.hasShuffled === true;
             dealBtn.disabled = !canDeal;
@@ -510,7 +504,6 @@ onValue(ref(db, "room"), (snap) => {
         else mafiaChat.classList.add("hidden");
 
         Object.entries(data.players).forEach(([pid, p]) => {
-            // HIDE HOST FROM GRID
             if (data.host && p.name === data.host.name) return;
 
             const isMe = pid === myId;
@@ -528,7 +521,32 @@ onValue(ref(db, "room"), (snap) => {
 
             const div = document.createElement("div");
             div.classList.add("playerCard");
-            div.innerHTML = `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
+            
+            // --- HOST BUTTONS: KICK & LATE DEAL ---
+            if(isHost) {
+                // Kick Button
+                const kickBtn = document.createElement("button");
+                kickBtn.className = "kickBtn";
+                kickBtn.innerText = "X";
+                kickBtn.onclick = (e) => { e.stopPropagation(); if(confirm("Kick player?")) remove(ref(db, `room/players/${pid}`)); };
+                div.appendChild(kickBtn);
+
+                // Late Deal Button (If dealt, no role, not night)
+                if(isDealt && !p.role && phase !== "night") {
+                    const lateDealBtn = document.createElement("button");
+                    lateDealBtn.className = "lateDealBtn";
+                    lateDealBtn.innerText = "🃏 Deal Entry";
+                    lateDealBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        // Assign random basic role
+                        const newRole = Math.random() > 0.8 ? "mafia" : "civilian"; 
+                        update(ref(db, `room/players/${pid}`), { role: newRole, statusTags: "" });
+                    };
+                    div.appendChild(lateDealBtn);
+                }
+            }
+
+            div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
             div.onclick = () => {
                 if(isDealt && canSeeRole && p.role) {
                     document.getElementById("modalRole").src = `images/${p.role}.png`;
@@ -539,7 +557,8 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
-            if (me && !amDead) { 
+            // GAMEPLAY BUTTONS
+            if (me && !amDead && me.role) { // Must have role to play
                 const nightData = data.night || {};
                 if (phase === "night") {
                     let alreadyVoted = false;
@@ -571,7 +590,27 @@ onValue(ref(db, "room"), (snap) => {
                         votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
                     } else {
                         if(votingPanel.innerHTML.includes("Vote Submitted")) votingPanel.innerHTML = `<h3>Day Vote</h3><p id="voteInstruction">Who to eliminate?</p><div id="voteTargets" class="targets"></div><button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>`;
+                        
+                        // Add Players
                         createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
+                        
+                        // Add SKIP Button (Once)
+                        const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
+                        if(!skipExists) {
+                            const skipBtn = document.createElement("button");
+                            skipBtn.innerText = "😴 SKIP VOTE";
+                            skipBtn.dataset.pid = "SKIP";
+                            skipBtn.className = "skipBtn";
+                            skipBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
+                                skipBtn.classList.add("selected");
+                                submitVoteBtn.disabled = false;
+                                submitVoteBtn.dataset.vote = "SKIP";
+                            });
+                            voteTargets.prepend(skipBtn); // Add to top
+                        }
+
                         votingPanel.classList.remove("hidden");
                     }
                 }
