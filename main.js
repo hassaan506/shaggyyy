@@ -35,6 +35,8 @@ const liveVoteList = document.getElementById("liveVoteList");
 const scoreboard = document.getElementById("scoreboard");
 const scoreTown = document.getElementById("scoreTown");
 const scoreMafia = document.getElementById("scoreMafia");
+const scoreJester = document.getElementById("scoreJester");
+const jesterContainer = document.getElementById("jesterContainer"); // NEW
 
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
@@ -129,12 +131,10 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
-// KICK LOGIC
 onValue(ref(db, "room/players"), (snap) => {
     const players = snap.val();
     const myId = localStorage.getItem("playerId");
     const isHost = localStorage.getItem("isHost") === "true";
-
     if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
         localStorage.clear();
         location.reload();
@@ -190,11 +190,10 @@ softResetBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS & EVENT DELEGATION
+// 3. HOST CONTROLS & DELEGATION
 // --------------------------------------------------
 playersList.addEventListener('click', (e) => {
     const target = e.target;
-    
     if (target.classList.contains('kickBtn')) {
         e.stopPropagation();
         const pid = target.dataset.pid;
@@ -202,14 +201,12 @@ playersList.addEventListener('click', (e) => {
         if(confirm(`Kick ${name}?`)) remove(ref(db, `room/players/${pid}`));
         return;
     }
-
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
         const pid = target.dataset.pid;
         update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
         return;
     }
-
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
         const role = target.dataset.role;
@@ -247,27 +244,18 @@ dealBtn.addEventListener('click', async () => {
     let roles = [];
     let badGuyCount = count >= 8 ? 3 : (count >= 6 ? 2 : 1);
 
-    // Bad Guys
     if (badGuyCount === 1) roles.push(Math.random() < 0.5 ? "godfather" : "mafia");
     else {
         roles.push("godfather");
         for (let i = 1; i < badGuyCount; i++) roles.push("mafia");
     }
-    
-    // Core Roles
     roles.push("doctor");
     roles.push("detective");
-    
-    // Special Roles Logic
     if (count > 5) roles.push("grandma");
     
-    // --- JESTER LOGIC (Added) ---
-    // Only if more than 7 players (8+)
-    if (count > 7) {
-        roles.push("jester");
-    }
+    // JESTER LOGIC: Only if more than 7 players
+    if (count > 7) roles.push("jester");
     
-    // Civilians
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
@@ -317,7 +305,6 @@ dayBtn.addEventListener('click', async () => {
         let finalNightDeathId = victimId;
         let nightDeathReason = "Killed by Mafia";
 
-        // Grandma Logic
         if (grandmaVotes > 0) {
             if (grandmaVotes >= 2) {
                 const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
@@ -348,7 +335,6 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Bulletproof Vest";
         }
 
-        // TRIGGER MODAL
         if (finalNightDeathId) {
             nrTitle.innerText = "TRAGEDY!";
             nrIcon.innerText = "💀";
@@ -405,11 +391,9 @@ endDayBtn.addEventListener('click', async () => {
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
     const votes = votesSnap.val() ? Object.values(votesSnap.val()) : [];
-    
-    // --- JESTER LOGIC (Check Elimination) ---
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val();
-
+    
     let elimId = null;
     if (votes.length > 0) {
         const count = {};
@@ -423,12 +407,14 @@ endDayBtn.addEventListener('click', async () => {
         if(tied.length > 0) elimId = tied[Math.floor(Math.random() * tied.length)];
     }
 
-    // JESTER WIN CHECK
     if (elimId && elimId !== "SKIP" && players[elimId] && players[elimId].role === "jester") {
+        const scoreSnap = await get(ref(db, "room/scoreboard"));
+        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
+        scores.jester = (scores.jester || 0) + 1;
+        await update(ref(db, "room/scoreboard"), scores);
         await set(ref(db, "room/winMessage"), "🤡 JESTER WINS! (Chaos Reigns)");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
-        // Optional: Reset score or give Jester a point (not implemented in standard team score)
-        return; // End day processing here
+        return; 
     }
 
     let report = "📢 DAY END REPORT:\n";
@@ -447,7 +433,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS
+// 4. ACTIONS
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -519,10 +505,16 @@ onValue(ref(db, "room"), (snap) => {
         return;
     }
 
-    const scores = data.scoreboard || { town: 0, mafia: 0 };
+    // SCOREBOARD & JESTER TOGGLE
+    const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
     scoreTown.innerText = scores.town;
     scoreMafia.innerText = scores.mafia;
+    scoreJester.innerText = scores.jester;
     scoreboard.classList.remove("hidden");
+
+    const playerCount = Object.keys(data.players || {}).length;
+    if (playerCount > 7) jesterContainer.classList.remove("hidden");
+    else jesterContainer.classList.add("hidden");
 
     allPlayersCache = data.players || {};
     const isHost = localStorage.getItem("isHost") === "true";
@@ -771,7 +763,7 @@ async function checkWinCondition() {
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         const scoreSnap = await get(ref(db, "room/scoreboard"));
-        let scores = scoreSnap.val() || { town: 0, mafia: 0 };
+        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.town++;
         await update(ref(db, "room/scoreboard"), scores);
     } 
@@ -779,7 +771,7 @@ async function checkWinCondition() {
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         const scoreSnap = await get(ref(db, "room/scoreboard"));
-        let scores = scoreSnap.val() || { town: 0, mafia: 0 };
+        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.mafia++;
         await update(ref(db, "room/scoreboard"), scores);
     }
