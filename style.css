@@ -8,13 +8,14 @@ body {
     transition: background 1.0s ease, color 1.0s ease;
     background-color: #1a1a1a; color: #ddd;
     overflow-x: hidden;
-    /* DISABLE TEXT SELECTION GLOBALLY */
+    /* DISABLE TEXT SELECTION & HOLD-TO-SAVE */
     user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
-/* PREVENT IMAGE DRAGGING / SAVING */
+/* STRICT IMAGE LOCKDOWN */
 img {
-    pointer-events: none; /* Clicks pass through image to the card */
+    pointer-events: none; /* Clicks pass through */
     user-select: none; -webkit-user-select: none;
     -webkit-user-drag: none; user-drag: none;
 }
@@ -86,23 +87,34 @@ body.day #screenLobby .joinCard { background: rgba(255, 255, 255, 0.9); border: 
 .primary:hover { background: linear-gradient(to bottom, #ff7f7f, #e60000); transform: translateY(-2px); }
 .primary:disabled { background: #888; cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
 
-/* FIXED KICK BUTTON - High Z-Index */
+/* KICK BUTTON - High Z-Index */
 .kickBtn {
     position: absolute; top: -12px; right: -12px; 
     background: linear-gradient(135deg, #ff4d4d, #990000);
     color: white; border: 2px solid #fff; border-radius: 50%; width: 32px; height: 32px; 
     font-weight: bold; font-size: 14px; cursor: pointer; 
-    z-index: 9999; /* SUPREME LAYER */
+    z-index: 9999;
     box-shadow: 0 2px 5px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
 }
 .kickBtn:hover { transform: scale(1.2); }
 
-/* FIXED LATE DEAL BUTTON - High Z-Index */
+/* LATE DEAL BUTTON - High Z-Index */
 .lateDealBtn {
     margin-top: 8px; padding: 6px 12px; background: linear-gradient(to bottom, #4cd964, #28a745);
     color: white; border: none; border-radius: 20px; font-size: 11px; cursor: pointer; 
     z-index: 9999; position: relative;
 }
+
+/* VIEW ROLE BUTTON (Replaces Card Click) */
+.viewRoleBtn {
+    position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #333; color: white; border: 2px solid #fff;
+    font-size: 16px; cursor: pointer; z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+}
+.viewRoleBtn:hover { background: #555; transform: translateX(-50%) scale(1.1); }
 
 .skipBtn { background: #6c757d !important; border: 1px solid #555 !important; color: #fff !important; font-style: italic; border-radius: 20px !important; }
 .skipBtn.selected { background: #343a40 !important; border-color: #fff !important; box-shadow: 0 0 10px white; }
@@ -123,7 +135,9 @@ body.night .btnGroup button { background: #1a1a2a; border: 1px solid #3b5bdb; co
 .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 20px; }
 
 .playerCard { 
-    padding: 15px; border-radius: 12px; text-align: center; position: relative; cursor: pointer; transition: all 0.5s ease;
+    padding: 15px; border-radius: 12px; text-align: center; position: relative; 
+    transition: all 0.5s ease;
+    /* Removed cursor pointer to imply not clickable */
 }
 .playerCard:hover { transform: translateY(-5px); }
 .playerCard img { width: 85px; height: 120px; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
