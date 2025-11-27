@@ -18,7 +18,7 @@ try {
     db = getDatabase(app);
 } catch (e) { console.error(e); }
 
-// --- SOUND ENGINE (FIXED) ---
+// --- SOUND ENGINE (Global Unlocker) ---
 const sounds = {
     shuffle: new Audio('sounds/shuffle.mp3'),
     deal: new Audio('sounds/deal.mp3'),       
@@ -30,23 +30,19 @@ const sounds = {
     shotgun: new Audio('sounds/shotgun.mp3')  
 };
 
-// 1. Helper to Unlock Audio on First Click (Browser Policy Fix)
-function unlockAudio() {
+// Unlock all audio on the very first click anywhere
+document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
-        s.muted = true;
-        s.play().catch(() => {}); // Play silence
-        s.pause();
-        s.currentTime = 0;
-        s.muted = false;
+        if(s.readyState === 0) s.load(); // Preload
     });
-}
+}, { once: true });
 
 function playSound(name) {
     try {
         if(sounds[name]) {
             sounds[name].currentTime = 0;
             sounds[name].volume = 0.6; 
-            sounds[name].play().catch(e => console.log("Audio blocked:", e));
+            sounds[name].play().catch(e => console.log("Audio waiting for interaction..."));
         }
     } catch(e) { console.log("Sound error", e); }
 }
@@ -110,7 +106,7 @@ let allPlayersCache = {};
 let myCurrentRole = null;
 let lastPhase = "Waiting";
 
-// --- UTILS: REAL SHUFFLE ---
+// --- UTILS ---
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -120,16 +116,17 @@ function shuffleArray(array) {
 }
 
 // --------------------------------------------------
-// 1. INITIALIZATION & JOIN
+// 1. INITIALIZATION & JOIN (NO RELOAD)
 // --------------------------------------------------
+// Check Local State on Load
 if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
     screenJoin.classList.add("hidden");
+    // screenLobby/Game visibility is handled by onValue
 } else {
     screenJoin.classList.remove("hidden");
 }
 
 firstJoinBtn.addEventListener('click', async () => {
-    unlockAudio(); // UNLOCK AUDIO
     playSound('click');
     const name = playerNameInput.value.trim();
     if (!name) { joinStatus.innerText = "Please enter a name."; return; }
@@ -141,8 +138,11 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
+        
         await set(refP, { name, role: null, statusTags: "" });
+        
         screenJoin.classList.add("hidden");
+        // Do NOT reload. Let onValue handle the switch.
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
@@ -150,83 +150,51 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST
+// 2. LOBBY & HOST (NO RELOAD - FIXES LOOP)
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
-    unlockAudio(); // UNLOCK AUDIO
     playSound('click');
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
-    if(!myName) return location.reload();
+
+    if(!myName) {
+        alert("Error: Name lost. Please rejoin.");
+        localStorage.clear();
+        location.reload();
+        return;
+    }
 
     claimHostBtn.disabled = true;
     claimHostBtn.innerText = "Claiming...";
 
+    // 1. Update Local State FIRST (Prevents Auto-Kick)
+    localStorage.setItem("isHost", "true");
+    localStorage.setItem("playerId", "HOST");
+
+    // 2. Update Database
     await set(ref(db, "room/host"), { name: myName });
+    
+    // 3. Remove "Player" entry from DB
     if (myTempId && myTempId !== "HOST") {
         try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
+
+    // 4. Move everyone to "Waiting"
     await set(ref(db, "room/gamePhase"), "Waiting");
-    localStorage.setItem("isHost", "true");
-    localStorage.setItem("playerId", "HOST");
-    location.reload();
+
+    // 5. UI Update happens automatically via onValue
 });
 
+// AUTO-KICK PROTECTION LOGIC
 onValue(ref(db, "room/players"), (snap) => {
     const players = snap.val();
     const myId = localStorage.getItem("playerId");
     const isHost = localStorage.getItem("isHost") === "true";
 
+    // ONLY Kick if: I have an ID, I am NOT 'HOST', I am NOT claiming to be Host, and I am NOT in the DB
     if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
+        console.log("Kicked by Host or Connection Lost");
         localStorage.clear();
-        location.reload();
-    }
-});
-
-async function performSoftReset() {
-    const playersSnap = await get(ref(db, "room/players"));
-    const players = playersSnap.val() || {};
-    const updates = {};
-    
-    Object.keys(players).forEach(pid => {
-        updates[`room/players/${pid}/role`] = null;
-        updates[`room/players/${pid}/statusTags`] = "";
-        updates[`room/players/${pid}/vestUsed`] = false;
-        updates[`room/players/${pid}/vestActive`] = false;
-    });
-
-    const myName = localStorage.getItem("name");
-    if (myName) {
-        const newRef = push(ref(db, "room/players"));
-        updates[`room/players/${newRef.key}`] = { name: myName, role: null, statusTags: "" };
-        localStorage.setItem("playerId", newRef.key);
-    }
-
-    updates["room/night"] = null;
-    updates["room/votes"] = null;
-    updates["room/pendingResults"] = null;
-    updates["room/publicReport"] = null;
-    updates["room/winMessage"] = null;
-    updates["room/deckDealt"] = false;
-    updates["room/isShuffling"] = false;
-    updates["room/hasShuffled"] = false;
-    updates["room/gamePhase"] = "Lobby";
-    updates["room/host"] = null;
-
-    await update(ref(db), updates);
-    localStorage.setItem("isHost", "false");
-}
-
-nextRoundBtn.addEventListener('click', async () => {
-    if (confirm("Start Next Round? Scores will be kept.")) {
-        await performSoftReset();
-        location.reload();
-    }
-});
-
-softResetBtn.addEventListener('click', async () => {
-    if (confirm("RESTART ROUND?")) {
-        await performSoftReset();
         location.reload();
     }
 });
@@ -276,21 +244,22 @@ shuffleBtn.addEventListener('click', async () => {
     playSound('shuffle');
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
+    
     setTimeout(async () => {
         await set(ref(db, "room/isShuffling"), false);
         await set(ref(db, "room/hasShuffled"), true);
     }, 3000);
 });
 
-// --- FIXED DEAL & RANDOMIZATION LOGIC ---
+// --- FIXED RANDOMIZATION DEAL ---
 dealBtn.addEventListener('click', async () => {
     playSound('deal');
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
-    // 1. Get all IDs and Shuffle them deeply
+    // 1. Get Player IDs and Shuffle them INDEPENDENTLY
     let playerKeys = Object.keys(snap.val());
-    playerKeys = shuffleArray(playerKeys); // Shuffle IDs first!
+    playerKeys = shuffleArray(playerKeys); // Randomize order of IDs
 
     const count = playerKeys.length;
     let roles = [];
@@ -309,10 +278,10 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
-    // 2. Shuffle Roles deeply
+    // 2. Shuffle Roles
     roles = shuffleArray(roles);
 
-    // 3. Map Shuffled Roles to Shuffled IDs
+    // 3. Assign Shuffled Roles to Shuffled Player IDs
     const updates = {};
     playerKeys.forEach((pid, i) => {
         updates[`room/players/${pid}/role`] = roles[i];
@@ -320,11 +289,13 @@ dealBtn.addEventListener('click', async () => {
         updates[`room/players/${pid}/vestUsed`] = false;
         updates[`room/players/${pid}/vestActive`] = false;
     });
+    
     await update(ref(db), updates);
-
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
+
+// ... (Rest of the file Logic for Day/Night remains identical) ...
 
 nightBtn.addEventListener('click', () => {
     set(ref(db, "room/gamePhase"), "night");
@@ -562,6 +533,8 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
     if (!data) {
+        // If DB is truly null, it means a HARD reset happened.
+        // We only reload if we were part of the game.
         if (localStorage.getItem("playerId")) {
             localStorage.clear();
             alert("Host cleared the game.");
@@ -570,12 +543,13 @@ onValue(ref(db, "room"), (snap) => {
         return;
     }
 
+    // --- 1. SCOREBOARD ---
     const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
     scoreTown.innerText = scores.town;
     scoreMafia.innerText = scores.mafia;
     if(scoreJester) scoreJester.innerText = scores.jester || 0;
     scoreboard.classList.remove("hidden");
-
+    
     const playerCount = Object.keys(data.players || {}).length;
     if (playerCount > 7) jesterContainer.classList.remove("hidden");
     else jesterContainer.classList.add("hidden");
@@ -585,18 +559,48 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
+    // --- 2. SOUNDS ---
     if (phase !== lastPhase) {
         if (phase === "night") playSound('night');
         if (phase === "day") playSound('day');
         lastPhase = phase;
     }
 
+    // --- 3. SCREEN ROUTING (CRITICAL FIX) ---
+    // LOBBY: If phase is 'Lobby' OR there is no host set
+    if (phase === "Lobby" || !data.host) {
+        screenGame.classList.add("hidden");
+        screenLobby.classList.remove("hidden");
+        gameOverModal.classList.add("hidden");
+        
+        // If I WAS host, I'm not anymore visually until I claim it again
+        // But we don't clear localStorage here to prevent loops.
+        return;
+    } 
+    
+    // GAME: Host exists, phase is active
+    else {
+        screenLobby.classList.add("hidden");
+        // Show Game if I am Host OR I have a valid player ID
+        if (isHost || (myId && myId !== "HOST")) {
+            screenGame.classList.remove("hidden");
+        }
+    }
+
+    // --- 4. HOST UI ---
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
         document.getElementById("hostStatus").style.color = "#28a745";
     }
 
+    if(isHost) {
+        hostControls.classList.remove("hidden");
+        endDayBtn.classList.toggle("hidden", phase !== "day");
+        hostFeed.classList.remove("hidden");
+    }
+
+    // --- 5. THEME & ANIMATIONS ---
     document.getElementById("phaseText").innerText = phase;
     if(phase === "night") {
         document.body.className = "night";
@@ -608,16 +612,7 @@ onValue(ref(db, "room"), (snap) => {
         document.body.className = "";
     }
 
-    if (phase === "Lobby" || !data.host) {
-        screenGame.classList.add("hidden");
-        screenLobby.classList.remove("hidden");
-        gameOverModal.classList.add("hidden");
-        return;
-    } else {
-        screenLobby.classList.add("hidden");
-        if (isHost || (myId && myId !== "HOST")) screenGame.classList.remove("hidden");
-    }
-
+    // GAME OVER MODAL
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
@@ -634,12 +629,7 @@ onValue(ref(db, "room"), (snap) => {
         gameOverModal.classList.add("hidden");
     }
 
-    if(isHost) {
-        hostControls.classList.remove("hidden");
-        endDayBtn.classList.toggle("hidden", phase !== "day");
-        hostFeed.classList.remove("hidden");
-    }
-
+    // --- 6. DECK ---
     const isDealt = data.deckDealt === true;
     if (isDealt) {
         centralDeck.classList.add("hidden");
@@ -656,6 +646,7 @@ onValue(ref(db, "room"), (snap) => {
         }
     }
 
+    // --- 7. PLAYER RENDER LOOP ---
     playersList.innerHTML = "";
     if (data.players) {
         const me = data.players[myId];
@@ -685,6 +676,7 @@ onValue(ref(db, "room"), (snap) => {
             const div = document.createElement("div");
             div.classList.add("playerCard");
             
+            // HOST ONLY BUTTONS
             if(isHost) {
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
@@ -702,6 +694,7 @@ onValue(ref(db, "room"), (snap) => {
                 }
             }
 
+            // VIEW BUTTON (For Self)
             if (isDealt && canSeeRole && p.role) {
                 const viewBtn = document.createElement("button");
                 viewBtn.className = "viewRoleBtn";
@@ -714,6 +707,7 @@ onValue(ref(db, "room"), (snap) => {
             div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
             playersList.appendChild(div);
 
+            // --- INTERACTION PANELS ---
             if (me && !amDead && me.role) { 
                 const nightData = data.night || {};
                 if (phase === "night") {
@@ -794,6 +788,7 @@ onValue(ref(db, "room"), (snap) => {
     }
 });
 
+// ... (Helpers & Listeners for Reset/Exit remain same) ...
 function createBtn(container, name, pid, btn, datasetKey) {
     const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
     if(existing) return;
@@ -826,7 +821,6 @@ async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
     const p = Object.values(snap.val());
-    
     const activePlayers = p.filter(x => !x.statusTags);
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
@@ -850,6 +844,44 @@ async function checkWinCondition() {
         await update(ref(db, "room/scoreboard"), scores);
     }
 }
+
+// SOFT RESET (Restart Round)
+async function performSoftReset() {
+    const playersSnap = await get(ref(db, "room/players"));
+    const players = playersSnap.val() || {};
+    const updates = {};
+    Object.keys(players).forEach(pid => {
+        updates[`room/players/${pid}/role`] = null;
+        updates[`room/players/${pid}/statusTags`] = "";
+        updates[`room/players/${pid}/vestUsed`] = false;
+        updates[`room/players/${pid}/vestActive`] = false;
+    });
+    const myName = localStorage.getItem("name");
+    if (myName) {
+        const newRef = push(ref(db, "room/players"));
+        updates[`room/players/${newRef.key}`] = { name: myName, role: null, statusTags: "" };
+        localStorage.setItem("playerId", newRef.key);
+    }
+    updates["room/night"] = null;
+    updates["room/votes"] = null;
+    updates["room/pendingResults"] = null;
+    updates["room/publicReport"] = null;
+    updates["room/winMessage"] = null;
+    updates["room/deckDealt"] = false;
+    updates["room/isShuffling"] = false;
+    updates["room/hasShuffled"] = false;
+    updates["room/gamePhase"] = "Lobby";
+    updates["room/host"] = null;
+    await update(ref(db), updates);
+    localStorage.setItem("isHost", "false");
+}
+
+softResetBtn.addEventListener('click', async () => {
+    if (confirm("RESTART ROUND?")) {
+        await performSoftReset();
+        location.reload();
+    }
+});
 
 hardResetBtn.addEventListener('click', async () => {
     if (confirm("HARD RESET? This kicks everyone.")) {
