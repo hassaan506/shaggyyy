@@ -18,24 +18,22 @@ try {
     db = getDatabase(app);
 } catch (e) { console.error(e); }
 
-// --- SOUND ENGINE (FIXED PATH: 'sound/') ---
+// --- SOUND ENGINE (MATCHED TO YOUR FILES) ---
+// Files must be in 'sound' folder (singular)
 const sounds = {
-    shuffle: new Audio('sound/shuffle.mp3'),
-    deal: new Audio('sound/deal.mp3'),       
+    shuffle: new Audio('sound/shuffle.mp3'), 
     night: new Audio('sound/wolf.mp3'),
     day: new Audio('sound/rooster.mp3'),
-    click: new Audio('sound/click.mp3'),     
     mafiaWin: new Audio('sound/win.mp3'),    
     civWin: new Audio('sound/victory.mp3'),  
     shotgun: new Audio('sound/shotgun.mp3')  
 };
 
-// Global Audio Unlocker (Browsers block auto-audio)
+// Global Audio Unlocker (Fixes "Audio Context" errors)
 document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
-        if(s.readyState === 0) s.load();
+        if(s.readyState === 0) s.load(); // Preload all
     });
-    console.log("Audio System Unlocked");
 }, { once: true });
 
 function playSound(name) {
@@ -43,10 +41,8 @@ function playSound(name) {
         if(sounds[name]) {
             sounds[name].currentTime = 0;
             sounds[name].volume = 0.7; 
-            let playPromise = sounds[name].play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => console.log("Audio play failed (Interact first):", e));
-            }
+            let p = sounds[name].play();
+            if (p !== undefined) p.catch(e => console.log("Sound blocked: interact with screen first."));
         }
     } catch(e) { console.log("Sound error", e); }
 }
@@ -129,7 +125,6 @@ if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
 }
 
 firstJoinBtn.addEventListener('click', async () => {
-    playSound('click');
     const name = playerNameInput.value.trim();
     if (!name) { joinStatus.innerText = "Please enter a name."; return; }
     firstJoinBtn.disabled = true;
@@ -142,7 +137,7 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("isHost", "false");
         await set(refP, { name, role: null, statusTags: "" });
         screenJoin.classList.add("hidden");
-        location.reload();
+        // No reload, let onValue handle it
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
@@ -150,22 +145,50 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST
+// 2. LOBBY & HOST (FIXED - NO RELOAD)
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
-    playSound('click');
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
-    if(!myName) return location.reload();
+    if(!myName) {
+        alert("Error: No Name Found. Please rejoin.");
+        localStorage.clear();
+        location.reload();
+        return;
+    }
 
+    claimHostBtn.disabled = true;
+    claimHostBtn.innerText = "Claiming...";
+
+    // 1. Set Local Storage FIRST (Critical for Kick Logic)
+    localStorage.setItem("isHost", "true");
+    localStorage.setItem("playerId", "HOST");
+
+    // 2. Update DB
     await set(ref(db, "room/host"), { name: myName });
+    
+    // 3. Remove "Player" entry
     if (myTempId && myTempId !== "HOST") {
         try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
+
+    // 4. Start Game
     await set(ref(db, "room/gamePhase"), "Waiting");
-    localStorage.setItem("isHost", "true");
-    localStorage.setItem("playerId", "HOST");
-    location.reload();
+    
+    // No reload needed. onValue will see 'host' exists and show controls.
+});
+
+// AUTO-KICK PROTECTION
+onValue(ref(db, "room/players"), (snap) => {
+    const players = snap.val();
+    const myId = localStorage.getItem("playerId");
+    const isHost = localStorage.getItem("isHost") === "true";
+
+    // If I have an ID, am not Host, and am NOT in the DB -> Kicked
+    if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
+        localStorage.clear();
+        location.reload();
+    }
 });
 
 async function performSoftReset() {
@@ -217,14 +240,13 @@ softResetBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS & EVENT DELEGATION
+// 3. HOST CONTROLS
 // --------------------------------------------------
 playersList.addEventListener('click', (e) => {
     const target = e.target;
     
     if (target.classList.contains('kickBtn')) {
         e.stopPropagation();
-        playSound('click');
         const pid = target.dataset.pid;
         const name = target.dataset.name;
         if(confirm(`Kick ${name}?`)) remove(ref(db, `room/players/${pid}`));
@@ -233,7 +255,6 @@ playersList.addEventListener('click', (e) => {
 
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
-        playSound('deal');
         const pid = target.dataset.pid;
         update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
         return;
@@ -241,7 +262,6 @@ playersList.addEventListener('click', (e) => {
 
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
-        playSound('click');
         const role = target.dataset.role;
         const name = target.dataset.name;
         document.getElementById("modalRole").src = `images/${role}.png`;
@@ -268,12 +288,15 @@ shuffleBtn.addEventListener('click', async () => {
 });
 
 dealBtn.addEventListener('click', async () => {
-    playSound('deal');
+    // Use Shuffle sound because you don't have deal.mp3
+    playSound('shuffle'); 
+    
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
     let playersArr = Object.entries(snap.val());
-    shuffleArray(playersArr); // Shuffle Players
+    // 1. Shuffle Players
+    playersArr = shuffleArray(playersArr); 
 
     const count = playersArr.length;
     let roles = [];
@@ -292,11 +315,18 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
-    shuffleArray(roles); // Shuffle Roles
+    // 2. Shuffle Roles
+    roles = shuffleArray(roles);
 
+    const updates = {};
     playersArr.forEach(([pid], i) => {
-        update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
+        updates[`room/players/${pid}/role`] = roles[i];
+        updates[`room/players/${pid}/statusTags`] = "";
+        updates[`room/players/${pid}/vestUsed`] = false;
+        updates[`room/players/${pid}/vestActive`] = false;
     });
+    await update(ref(db), updates);
+    
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
@@ -368,8 +398,8 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Bulletproof Vest";
         }
 
+        // SOUND TRIGGERS
         if (finalNightDeathId) {
-            // Check exact condition for Shotgun sound
             if (nightDeathReason.includes("Mafia") || nightDeathReason.includes("Revenge") || nightDeathReason.includes("Ricochet")) {
                  playSound('shotgun');
             }
@@ -424,7 +454,6 @@ nrCloseBtn.addEventListener('click', () => {
 });
 
 endDayBtn.addEventListener('click', async () => {
-    playSound('click');
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
@@ -499,7 +528,6 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 submitActionBtn.addEventListener('click', async () => {
-    playSound('click');
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
     const target = submitActionBtn.dataset.target;
@@ -520,7 +548,6 @@ submitActionBtn.addEventListener('click', async () => {
 });
 
 submitVoteBtn.addEventListener('click', async () => {
-    playSound('click');
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
@@ -546,6 +573,7 @@ onValue(ref(db, "room"), (snap) => {
         return;
     }
 
+    // SCOREBOARD
     const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
     scoreTown.innerText = scores.town;
     scoreMafia.innerText = scores.mafia;
@@ -561,7 +589,7 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // SOUND & THEME
+    // PHASE CHANGE AUDIO
     if (phase !== lastPhase) {
         if (phase === "night") playSound('night');
         if (phase === "day") playSound('day');
@@ -574,6 +602,7 @@ onValue(ref(db, "room"), (snap) => {
         document.getElementById("hostStatus").style.color = "#28a745";
     }
 
+    // THEME
     document.getElementById("phaseText").innerText = phase;
     if(phase === "night") {
         document.body.className = "night";
@@ -585,6 +614,7 @@ onValue(ref(db, "room"), (snap) => {
         document.body.className = "";
     }
 
+    // SCREEN ROUTING
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
@@ -595,6 +625,7 @@ onValue(ref(db, "room"), (snap) => {
         if (isHost || (myId && myId !== "HOST")) screenGame.classList.remove("hidden");
     }
 
+    // GAME OVER
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
@@ -719,7 +750,6 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
-                                        playSound('click');
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
                                     }
                                 };
@@ -752,7 +782,6 @@ onValue(ref(db, "room"), (snap) => {
                             skipBtn.className = "skipBtn";
                             skipBtn.addEventListener('click', (e) => {
                                 e.preventDefault();
-                                playSound('click');
                                 Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
                                 skipBtn.classList.add("selected");
                                 submitVoteBtn.disabled = false;
@@ -779,7 +808,6 @@ function createBtn(container, name, pid, btn, datasetKey) {
     b.dataset.pid = pid;
     b.addEventListener('click', (e) => {
         e.preventDefault(); 
-        playSound('click');
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
         b.classList.add("selected");
         btn.disabled = false;
