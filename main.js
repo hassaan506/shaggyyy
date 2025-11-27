@@ -135,7 +135,6 @@ onValue(ref(db, "room/players"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const isHost = localStorage.getItem("isHost") === "true";
 
-    // If I have an ID, am not Host, and am NOT in the DB -> I was kicked
     if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
         localStorage.clear();
         location.reload();
@@ -213,7 +212,7 @@ playersList.addEventListener('click', (e) => {
         return;
     }
 
-    // VIEW ROLE BUTTON (New)
+    // VIEW ROLE BUTTON (Only way to see card)
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
         const role = target.dataset.role;
@@ -224,6 +223,19 @@ playersList.addEventListener('click', (e) => {
         document.getElementById("roleModal").style.display = "flex";
     }
 });
+
+// CLOSE MODAL ON BACKGROUND CLICK
+window.onclick = function(event) {
+    if (event.target == roleModal) {
+        roleModal.style.display = "none";
+    }
+    if (event.target == nightResultModal) {
+        nightResultModal.classList.add("hidden");
+    }
+}
+
+// CLOSE BUTTON
+window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 
 shuffleBtn.addEventListener('click', async () => {
     await set(ref(db, "room/isShuffling"), true);
@@ -420,7 +432,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS
+// 4. PLAYER ACTIONS & CHAT
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -597,7 +609,7 @@ onValue(ref(db, "room"), (snap) => {
             div.classList.add("playerCard");
             
             if(isHost) {
-                // KICK BUTTON (Data Attributes for Delegation)
+                // Kick Button
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
@@ -605,7 +617,7 @@ onValue(ref(db, "room"), (snap) => {
                 kickBtn.dataset.name = p.name;
                 div.appendChild(kickBtn);
 
-                // LATE DEAL BUTTON (Data Attributes)
+                // Late Deal Button
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
@@ -615,7 +627,7 @@ onValue(ref(db, "room"), (snap) => {
                 }
             }
 
-            // VIEW ROLE BUTTON (Only if we can see role & it's dealt)
+            // VIEW ROLE BUTTON (Only way to see card)
             if (isDealt && canSeeRole && p.role) {
                 const viewBtn = document.createElement("button");
                 viewBtn.className = "viewRoleBtn";
@@ -626,7 +638,7 @@ onValue(ref(db, "room"), (snap) => {
             }
 
             div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
-            // Removed div.onclick to prevent accidental touches
+            // REMOVED div.onclick
             
             playersList.appendChild(div);
 
@@ -734,9 +746,6 @@ async function pushTag(pid, tag) {
         await update(refP, { statusTags: newTags });
     }
 }
-
-window.closeModal = () => document.getElementById("roleModal").style.display = "none";
-function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
 
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
