@@ -283,3 +283,73 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
     60% { opacity: 1; } /* Reappear on merge */
     100% { opacity: 1; }
 }
+/* NIGHT RESULT MODAL STYLING */
+.result-wrapper {
+    background: transparent !important; /* Let card stand out */
+    box-shadow: none !important;
+    perspective: 1000px; /* Essential for 3D flip */
+}
+
+#nrTitle {
+    color: white; font-family: 'Creepster', cursive; 
+    font-size: 48px; text-shadow: 0 4px 10px black;
+    margin-bottom: 20px;
+}
+
+/* THE CARD CONTAINER */
+.flip-card-container {
+    background-color: transparent;
+    width: 200px; height: 280px;
+    margin: 0 auto 30px auto;
+}
+
+/* THE INNER WRAPPER (This rotates) */
+.flip-card-inner {
+    position: relative; width: 100%; height: 100%;
+    text-align: center;
+    transition: transform 0.8s;
+    transform-style: preserve-3d;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+}
+
+/* Class to trigger the flip via JS */
+.flip-card-inner.flipped {
+    transform: rotateY(180deg);
+}
+
+/* FRONT & BACK FACES */
+.flip-card-front, .flip-card-back {
+    position: absolute; width: 100%; height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 12px;
+    display: flex; flex-direction: column; 
+    justify-content: center; align-items: center;
+    border: 2px solid #444;
+}
+
+/* FRONT: Standard Card Back */
+.flip-card-front {
+    background-color: #1a1a1a;
+}
+.flip-card-front img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 10px;
+}
+
+/* BACK: The Result Info */
+.flip-card-back {
+    background-color: #111;
+    color: white;
+    transform: rotateY(180deg); /* Start flipped away */
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+}
+
+/* Result Styling */
+.result-icon { font-size: 60px; margin-bottom: 10px; }
+#nrName { font-size: 22px; font-weight: bold; margin-bottom: 5px; color: #fff; }
+#nrDetail { font-size: 14px; opacity: 0.8; color: #aaa; }
+
+/* Dynamic Border Colors based on Result */
+.flip-card-back.death { border-color: #d32f2f; box-shadow: 0 0 20px #d32f2f; }
+.flip-card-back.save { border-color: #28a745; box-shadow: 0 0 20px #28a745; }
+.flip-card-back.safe { border-color: #4dabf7; box-shadow: 0 0 20px #4dabf7; }
