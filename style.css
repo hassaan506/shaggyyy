@@ -199,37 +199,87 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 #chatInput { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 10px; border-radius: 20px; outline: none; }
 
 /* ---------------------------------------------
-    9. FARO / SPLIT SHUFFLE ANIMATION
+    9. THE FARO SHUFFLE (Split & Zipper)
 --------------------------------------------- */
 .tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
 .cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
-.deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: absolute; top:0; left:0; transition: transform 0.2s; border: 1px solid #444; }
-.layer1 { transform: rotate(3deg); z-index: -1; }
-.layer2 { transform: rotate(-3deg); z-index: -2; }
 
-/* FARO SHUFFLE LOGIC */
-.shaking .layer1 { animation: faroLeft 0.5s infinite ease-in-out alternate; }
-.shaking .layer2 { animation: faroRight 0.5s infinite ease-in-out alternate; }
-.shaking .deckImg:first-child { animation: faroMiddle 0.5s infinite ease-in-out alternate; }
-
-/* Left packet moves left and tilts */
-@keyframes faroLeft {
-    0% { transform: translateX(0) rotate(3deg); }
-    100% { transform: translateX(-50px) rotate(-10deg); }
-}
-/* Right packet moves right and tilts */
-@keyframes faroRight {
-    0% { transform: translateX(0) rotate(-3deg); }
-    100% { transform: translateX(50px) rotate(10deg); }
-}
-/* Top card vibrates in middle */
-@keyframes faroMiddle {
-    0% { transform: scale(1); }
-    100% { transform: scale(0.95); }
+/* Base Card Style */
+.deckImg { 
+    width: 100%; height: 100%; 
+    border-radius: 8px; 
+    /* Deep shadow to show stack thickness */
+    box-shadow: 2px 2px 0 #111, 4px 4px 0 #222, 6px 6px 10px rgba(0,0,0,0.5); 
+    position: absolute; top:0; left:0; 
+    border: 1px solid #444;
+    transition: transform 0.2s;
+    background-color: #fff; /* Ensure opaque background */
 }
 
-@media (max-width: 768px) {
-    .gameContainer { grid-template-columns: 1fr; }
-    .rightPanel { order: -1; } 
-    #mafiaChat { width: 200px; height: 220px; bottom: 70px; left: 10px; }
+/* Static State (Neat Stack) */
+.layer1 { transform: translate(-2px, -2px); z-index: 2; }
+.layer2 { transform: translate(-4px, -4px); z-index: 1; }
+.deckImg:first-child { transform: translate(0, 0); z-index: 3; } /* Top Card */
+
+/* --- FARO ANIMATION LOGIC --- */
+
+/* 1. The Top Packet (Moves Right & Tilts Left) */
+.shaking .deckImg:first-child { 
+    animation: faroTopPacket 1.2s infinite ease-in-out; 
+}
+
+/* 2. The Bottom Packet (Moves Left & Tilts Right) */
+.shaking .layer1 { 
+    animation: faroBottomPacket 1.2s infinite ease-in-out; 
+}
+
+/* 3. The Base (Stays put but vibrates slightly to sell the friction) */
+.shaking .layer2 { 
+    animation: faroBase 1.2s infinite linear; 
+}
+
+/* --- KEYFRAMES --- */
+
+@keyframes faroTopPacket {
+    0% { transform: translate(0,0); }
+    
+    /* Split Phase */
+    20% { transform: translateX(60px) translateY(-10px) rotate(-15deg); }
+    
+    /* Pause/Align Phase */
+    40% { transform: translateX(60px) translateY(-10px) rotate(-15deg); }
+    
+    /* The Zipper (Merge) Phase - Fast slide back */
+    60% { transform: translateX(0) translateY(0) rotate(0); }
+    
+    /* Square Up (Little bounce) */
+    70% { transform: scale(1.05); }
+    80% { transform: scale(1.0); }
+    100% { transform: translate(0,0); }
+}
+
+@keyframes faroBottomPacket {
+    0% { transform: translate(-2px, -2px); }
+    
+    /* Split Phase */
+    20% { transform: translateX(-60px) translateY(-10px) rotate(15deg); }
+    
+    /* Pause/Align Phase */
+    40% { transform: translateX(-60px) translateY(-10px) rotate(15deg); }
+    
+    /* The Zipper (Merge) Phase */
+    60% { transform: translate(-2px, -2px) rotate(0); }
+    
+    /* Square Up */
+    70% { transform: scale(1.05) translate(-2px, -2px); }
+    80% { transform: scale(1.0) translate(-2px, -2px); }
+    100% { transform: translate(-2px, -2px); }
+}
+
+@keyframes faroBase {
+    0% { opacity: 1; }
+    20% { opacity: 0; } /* Hide base during split so it looks like 2 piles */
+    50% { opacity: 0; }
+    60% { opacity: 1; } /* Reappear on merge */
+    100% { opacity: 1; }
 }
