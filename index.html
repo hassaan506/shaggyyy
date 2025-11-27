@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-    <title>Mafia Wars v4.0</title>
+    <title>Mafia Wars by Dr Shaggyyy</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=6.0">
+    <link rel="stylesheet" href="style.css?v=7.0">
 </head>
 <body class="day">
 
@@ -18,15 +18,17 @@
     <div id="screenJoin" class="screen">
         <div class="joinCard">
             <h1 class="gameTitle">Mafia Wars</h1>
-            <p class="author">Persistent Edition</p>
-            <input type="text" id="playerName" placeholder="Enter your name" />
+            <p class="author">By Dr Shaggyyy</p>
+            
+            <input type="text" id="playerName" placeholder="Enter your name" maxlength="12" />
             <button id="firstJoinBtn" class="primary">Enter Game Room</button>
+            <p id="joinStatus" style="margin-top:10px; font-size:12px; color:red;"></p>
         </div>
     </div>
 
     <div id="screenLobby" class="screen hidden">
         <div class="joinCard">
-            <h2>Next Round Lobby</h2>
+            <h2>Game Lobby</h2>
             <p>Waiting for a Host...</p>
             <hr>
             <div id="lobbyControls">
@@ -124,6 +126,6 @@
         </div>
     </div>
 
-    <script type="module" src="main.js?v=6.0"></script>
+    <script type="module" src="main.js?v=7.0"></script>
 </body>
 </html>
