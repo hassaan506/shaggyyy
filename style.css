@@ -284,40 +284,64 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 #chatInput:focus { border-color: #d32f2f; background: rgba(255,255,255,0.2); }
 
 /* ---------------------------------------------
-    9. VEGAS SHUFFLE ANIMATION
+    9. AGGRESSIVE SHUFFLE ANIMATION
 --------------------------------------------- */
 .tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
 .cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
-.deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: absolute; top:0; left:0; transition: transform 0.2s; }
+
+/* Base State of Cards */
+.deckImg { 
+    width: 100%; height: 100%; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
+    position: absolute; top:0; left:0; 
+    transition: transform 0.2s; 
+    border: 1px solid #444;
+}
+/* Static Fan (When not shuffling) */
 .layer1 { transform: rotate(3deg); z-index: -1; }
 .layer2 { transform: rotate(-3deg); z-index: -2; }
 
-/* The Riffle Shuffle Fan Logic */
-.shaking .layer1 { animation: shuffleFanLeft 0.5s infinite ease-in-out alternate; }
-.shaking .layer2 { animation: shuffleFanRight 0.5s infinite ease-in-out alternate; }
-.shaking .deckImg:first-child { animation: shuffleTop 0.5s infinite ease-in-out alternate; }
+/* --- THE NEW ANIMATION LOGIC --- */
 
-@keyframes shuffleFanLeft {
+/* 1. The Container Vibrates violently */
+.shaking { animation: deckVibrate 0.1s infinite; }
+
+/* 2. Left Card Slides FAR Left and tilts */
+.shaking .layer1 { animation: flyOutLeft 0.5s infinite ease-in-out alternate; }
+
+/* 3. Right Card Slides FAR Right and tilts */
+.shaking .layer2 { animation: flyOutRight 0.5s infinite ease-in-out alternate; }
+
+/* 4. Top Card "Pops" up and down (Riffle effect) */
+.shaking .deckImg:first-child { animation: popTop 0.25s infinite alternate; }
+
+/* --- KEYFRAMES --- */
+
+@keyframes deckVibrate {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(1px, 1px); }
+    50% { transform: translate(-1px, -1px); }
+    75% { transform: translate(1px, -1px); }
+    100% { transform: translate(-1px, 1px); }
+}
+
+@keyframes flyOutLeft {
     0% { transform: rotate(3deg) translate(0,0); }
-    100% { transform: rotate(-25deg) translate(-30px, 10px); }
+    100% { transform: rotate(-20deg) translate(-60px, 10px) scale(0.95); }
 }
-@keyframes shuffleFanRight {
+
+@keyframes flyOutRight {
     0% { transform: rotate(-3deg) translate(0,0); }
-    100% { transform: rotate(25deg) translate(30px, 10px); }
-}
-@keyframes shuffleTop {
-    0% { transform: scale(1); }
-    100% { transform: scale(1.1); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+    100% { transform: rotate(20deg) translate(60px, 10px) scale(0.95); }
 }
 
-@media (max-width: 768px) {
-    .gameContainer { grid-template-columns: 1fr; }
-    .rightPanel { order: -1; } 
-    #mafiaChat { width: 200px; height: 220px; bottom: 70px; left: 10px; }
+@keyframes popTop {
+    0% { transform: scale(1) translateY(0); }
+    100% { transform: scale(1.05) translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.5); }
 }
-
 /* ---------------------------------------------
-    7. Civilians Wearing Vest
+    10. Civilians Wearing Vest
 --------------------------------------------- */
 .vestBtn {
     width: 100%;
@@ -335,4 +359,5 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 }
 .vestBtn:hover { transform: scale(1.02); background: linear-gradient(to bottom, #5aa0f2, #1066c3); }
 .vestBtn:disabled { background: #555; opacity: 0.6; cursor: not-allowed; transform: none; }
+
 
