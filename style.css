@@ -219,3 +219,48 @@ body.night .panel { background: rgba(255,255,255,0.1); }
         left: 10px;
     }
 }
+
+/* SCOREBOARD */
+.scoreboard {
+    position: fixed;
+    top: 0; left: 0; width: 100%;
+    background: #111;
+    color: white;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 5px;
+    z-index: 1000;
+    border-bottom: 2px solid #444;
+    font-family: sans-serif;
+}
+.scoreboard b { font-size: 18px; }
+.townScore { color: #4dabf7; }
+.mafiaScore { color: #e03131; }
+.vs { opacity: 0.5; font-size: 12px; align-self: center; }
+
+/* Adjust body padding so scoreboard doesn't cover game */
+body { padding-top: 40px; }
+
+/* LOBBY SCREEN */
+#screenLobby {
+    background: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+#lobbyControls {
+    margin-top: 20px;
+}
+#lobbyControls button {
+    width: 100%;
+    padding: 15px;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+}
+#lobbyControls button:active { transform: translateY(2px); box-shadow: none; }
