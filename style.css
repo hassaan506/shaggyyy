@@ -264,3 +264,46 @@ body { padding-top: 40px; }
     box-shadow: 0 4px 0 rgba(0,0,0,0.2);
 }
 #lobbyControls button:active { transform: translateY(2px); box-shadow: none; }
+
+/* ADD TO YOUR CSS */
+
+/* Kick Button (Top Right of Card) */
+.kickBtn {
+    position: absolute;
+    top: -5px; right: -5px;
+    background: red;
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    width: 24px; height: 24px;
+    font-weight: bold;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+.kickBtn:hover { background: darkred; transform: scale(1.1); }
+
+/* Late Deal Button (Middle of Card) */
+.lateDealBtn {
+    margin-top: 5px;
+    padding: 4px 8px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+/* Skip Vote Button Styling */
+.skipBtn {
+    background: #6c757d !important; /* Grey */
+    font-weight: bold;
+    border: 1px solid #555 !important;
+}
+.skipBtn.selected {
+    background: #495057 !important;
+    border-color: #fff !important;
+}
