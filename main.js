@@ -114,7 +114,7 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST CLAIM (ROBUST FIX)
+// 2. LOBBY & HOST CLAIM
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
@@ -122,20 +122,15 @@ claimHostBtn.addEventListener('click', async () => {
 
     if(!myName) return location.reload();
 
-    // 1. Set Host Name
     await set(ref(db, "room/host"), { name: myName });
     
-    // 2. Force Remove Player Entry from DB
+    // Cleanup player entry
     if (myTempId && myTempId !== "HOST") {
-        try {
-            await remove(ref(db, `room/players/${myTempId}`));
-        } catch (e) { console.log("Cleanup error", e); }
+        try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
 
-    // 3. Set Game State
     await set(ref(db, "room/gamePhase"), "Waiting");
     
-    // 4. Update Local Storage
     localStorage.setItem("isHost", "true");
     localStorage.setItem("playerId", "HOST");
     
@@ -160,6 +155,7 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/winMessage"] = null;
         updates["room/deckDealt"] = false;
         updates["room/isShuffling"] = false;
+        updates["room/hasShuffled"] = false; // Reset shuffle status
         
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
@@ -172,17 +168,28 @@ nextRoundBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS
+// 3. HOST CONTROLS (FIXED SHUFFLE LOGIC)
 // --------------------------------------------------
 shuffleBtn.addEventListener('click', async () => {
+    // 1. Start Animation
     await set(ref(db, "room/isShuffling"), true);
-    setTimeout(async () => { await set(ref(db, "room/isShuffling"), false); }, 1500);
+    await set(ref(db, "room/hasShuffled"), false); // Disable Deal
+
+    // 2. Wait 1.5s then Stop
+    setTimeout(async () => {
+        await set(ref(db, "room/isShuffling"), false);
+        await set(ref(db, "room/hasShuffled"), true); // Enable Deal
+    }, 1500);
 });
 
 if (centralDeck) centralDeck.addEventListener('click', async () => {
     if (!centralDeck.classList.contains("hidden") && localStorage.getItem("isHost") === "true") {
         await set(ref(db, "room/isShuffling"), true);
-        setTimeout(async () => { await set(ref(db, "room/isShuffling"), false); }, 1500);
+        await set(ref(db, "room/hasShuffled"), false); 
+        setTimeout(async () => { 
+            await set(ref(db, "room/isShuffling"), false); 
+            await set(ref(db, "room/hasShuffled"), true); 
+        }, 1500);
     }
 });
 
@@ -402,7 +409,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN SYNC LOOP (WITH VISUAL FIX)
+// 5. MAIN SYNC LOOP
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -425,6 +432,13 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
+    // --- HOST STATUS FIX ---
+    if(data.host) {
+        document.getElementById("hostName").innerText = data.host.name;
+        document.getElementById("hostStatus").innerText = "Host Online";
+        document.getElementById("hostStatus").style.color = "#28a745";
+    }
+
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
@@ -432,7 +446,6 @@ onValue(ref(db, "room"), (snap) => {
         return;
     } else {
         screenLobby.classList.add("hidden");
-        // Only show game screen if I am Host OR I have a valid Player ID
         if (isHost || (myId && myId !== "HOST")) {
             screenGame.classList.remove("hidden");
         }
@@ -460,6 +473,7 @@ onValue(ref(db, "room"), (snap) => {
         hostFeed.classList.remove("hidden");
     }
 
+    // --- DEAL BUTTON FIX ---
     const isDealt = data.deckDealt === true;
     if (isDealt) {
         centralDeck.classList.add("hidden");
@@ -469,7 +483,13 @@ onValue(ref(db, "room"), (snap) => {
         const deckImg = document.querySelector(".cardDeck");
         if(deckImg) data.isShuffling ? deckImg.classList.add("shaking") : deckImg.classList.remove("shaking");
         deckStatus.innerText = data.isShuffling ? "Shuffling..." : "Ready";
-        if(isHost) dealBtn.disabled = false;
+        
+        // DISABLE DEAL UNTIL SHUFFLED
+        if(isHost) {
+            const canDeal = data.hasShuffled === true;
+            dealBtn.disabled = !canDeal;
+            dealBtn.style.opacity = canDeal ? "1" : "0.5";
+        }
     }
 
     document.getElementById("phaseText").innerText = phase;
@@ -490,8 +510,7 @@ onValue(ref(db, "room"), (snap) => {
         else mafiaChat.classList.add("hidden");
 
         Object.entries(data.players).forEach(([pid, p]) => {
-            // --- VISUAL GUARD: HIDE HOST FROM GRID ---
-            // If this player's name matches the Host's name, skip rendering.
+            // HIDE HOST FROM GRID
             if (data.host && p.name === data.host.name) return;
 
             const isMe = pid === myId;
