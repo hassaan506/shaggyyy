@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
     <title>Mafia Wars by Dr Shaggyyy</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=10.0">
+    <link rel="stylesheet" href="style.css?v=12.0">
 </head>
 <body class="">
 
@@ -16,8 +16,13 @@
 
     <div id="scoreboard" class="scoreboard hidden">
         <span class="townScore">Town: <b id="scoreTown">0</b></span>
-        <span class="vs">VS</span>
+        <span class="vs">|</span>
         <span class="mafiaScore">Mafia: <b id="scoreMafia">0</b></span>
+        
+        <span id="jesterContainer" class="hidden">
+            <span class="vs">|</span>
+            <span class="jesterScore">Jester: <b id="scoreJester">0</b></span>
+        </span>
     </div>
 
     <div id="screenJoin" class="screen">
@@ -112,6 +117,23 @@
         </div>
     </div>
 
+    <div id="nightResultModal" class="hidden">
+        <div class="modalContent result-wrapper">
+            <h2 id="nrTitle">The Sun Rises...</h2>
+            <div class="flip-card-container">
+                <div class="flip-card-inner" id="nrCardInner">
+                    <div class="flip-card-front"><img src="images/back.png"></div>
+                    <div class="flip-card-back">
+                        <div id="nrIcon" class="result-icon">💀</div>
+                        <h3 id="nrName">Player Name</h3>
+                        <p id="nrDetail">Killed by Mafia</p>
+                    </div>
+                </div>
+            </div>
+            <button id="nrCloseBtn" class="primary">Continue to Day</button>
+        </div>
+    </div>
+
     <div id="gameOverModal" class="hidden">
         <div class="modalContent">
             <h1 id="winMessage">GAME OVER</h1>
@@ -120,26 +142,6 @@
             <button id="modalExitBtn" style="background: #333; color: white; width: 100%; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #555; cursor: pointer;">🚪 Leave Room</button>
         </div>
     </div>
-    <div id="nightResultModal" class="hidden">
-    <div class="modalContent result-wrapper">
-        <h2 id="nrTitle">The Sun Rises...</h2>
-        
-        <div class="flip-card-container">
-            <div class="flip-card-inner" id="nrCardInner">
-                <div class="flip-card-front">
-                    <img src="images/back.png" alt="Card Back">
-                </div>
-                <div class="flip-card-back">
-                    <div id="nrIcon" class="result-icon">💀</div>
-                    <h3 id="nrName">Player Name</h3>
-                    <p id="nrDetail">Killed by Mafia</p>
-                </div>
-            </div>
-        </div>
-
-        <button id="nrCloseBtn" class="primary">Continue to Day</button>
-    </div>
-</div>
 
     <div id="roleModal">
         <div class="modalContent">
@@ -150,7 +152,6 @@
         </div>
     </div>
 
-    <script type="module" src="main.js?v=10.0"></script>
+    <script type="module" src="main.js?v=12.0"></script>
 </body>
 </html>
-
