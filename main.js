@@ -121,7 +121,7 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
-// SHARED SOFT RESET FUNCTION
+// SOFT RESET LOGIC
 async function performSoftReset() {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
@@ -134,13 +134,11 @@ async function performSoftReset() {
         updates[`room/players/${pid}/vestActive`] = false;
     });
 
-    // Add current HOST back to player list so they can play next round
     const myName = localStorage.getItem("name");
     if (myName) {
         const newRef = push(ref(db, "room/players"));
         updates[`room/players/${newRef.key}`] = { name: myName, role: null, statusTags: "" };
-        // We update the DB, but local storage update happens on reload/re-login logic
-        // Actually, let's just clear isHost locally
+        localStorage.setItem("playerId", newRef.key);
     }
 
     updates["room/night"] = null;
@@ -155,20 +153,19 @@ async function performSoftReset() {
     updates["room/host"] = null;
 
     await update(ref(db), updates);
+    localStorage.setItem("isHost", "false");
 }
 
 nextRoundBtn.addEventListener('click', async () => {
     if (confirm("Start Next Round? Scores will be kept.")) {
         await performSoftReset();
-        localStorage.setItem("isHost", "false");
         location.reload();
     }
 });
 
 softResetBtn.addEventListener('click', async () => {
-    if (confirm("RESTART ROUND? This keeps players but resets roles.")) {
+    if (confirm("RESTART ROUND?")) {
         await performSoftReset();
-        localStorage.setItem("isHost", "false");
         location.reload();
     }
 });
@@ -189,11 +186,9 @@ dealBtn.addEventListener('click', async () => {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
-    // Convert to Array
+    // --- DOUBLE SHUFFLE LOGIC ---
     let playersArr = Object.entries(snap.val());
-    
-    // DOUBLE SHUFFLE FIX: Shuffle players array first
-    shuffleArray(playersArr);
+    shuffleArray(playersArr); // 1. Shuffle Players
 
     const count = playersArr.length;
     let roles = [];
@@ -211,8 +206,7 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
-    // DOUBLE SHUFFLE FIX: Shuffle roles array
-    shuffleArray(roles);
+    shuffleArray(roles); // 2. Shuffle Roles
 
     playersArr.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
@@ -228,81 +222,89 @@ nightBtn.addEventListener('click', () => {
 });
 
 dayBtn.addEventListener('click', async () => {
-    const nightSnap = await get(ref(db, "room/night"));
-    const night = nightSnap.val() || {};
-    const playersSnap = await get(ref(db, "room/players"));
-    const players = playersSnap.val();
+    try {
+        const nightSnap = await get(ref(db, "room/night"));
+        const night = nightSnap.val() || {};
+        const playersSnap = await get(ref(db, "room/players"));
+        const players = playersSnap.val();
+        
+        if (!players) throw new Error("No players found in DB");
+
+        const mafiaVotesRaw = night.mafiaVotes || {};
+        let voteCounts = {};
+        let grandmaVotes = 0;
+        let grandmaAttacker = null;
+
+        Object.entries(mafiaVotesRaw).forEach(([attackerId, targetId]) => {
+            voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+            if (players[targetId] && players[targetId].role === "grandma") {
+                grandmaVotes++;
+                grandmaAttacker = attackerId;
+            }
+        });
+
+        let maxVotes = 0;
+        let potentialVictims = [];
+        for (const [pid, count] of Object.entries(voteCounts)) {
+            if (count > maxVotes) { maxVotes = count; potentialVictims = [pid]; } 
+            else if (count === maxVotes) { potentialVictims.push(pid); }
+        }
+        let victimId = potentialVictims.length > 0 ? potentialVictims[Math.floor(Math.random() * potentialVictims.length)] : null;
+        let finalNightDeathId = victimId;
+        let nightDeathReason = "Killed by Mafia";
+
+        if (grandmaVotes > 0) {
+            if (grandmaVotes >= 2) {
+                const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
+                if (badGuys.length > 0) {
+                    finalNightDeathId = badGuys[Math.floor(Math.random() * badGuys.length)][0];
+                    nightDeathReason = "Grandma Ricochet";
+                } else finalNightDeathId = null;
+            } 
+            else if (grandmaVotes === 1 && grandmaAttacker) {
+                finalNightDeathId = grandmaAttacker;
+                nightDeathReason = "Grandma Revenge";
+            }
+        }
+
+        let wasSaved = false;
+        let savedName = "Unknown";
+        if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
+            wasSaved = true;
+            savedName = getName(finalNightDeathId);
+            finalNightDeathId = null; 
+            nightDeathReason = "Saved by Doctor";
+        }
+
+        let vestSaved = false;
+        if (finalNightDeathId && players[finalNightDeathId] && players[finalNightDeathId].vestActive) {
+            vestSaved = true;
+            finalNightDeathId = null;
+            nightDeathReason = "Bulletproof Vest";
+        }
+
+        let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
+        if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
+        else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
+        else if (vestSaved) alertMsg += `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
+        else alertMsg += `🛡️ No one died.`;
+        alert(alertMsg);
+
+        const resetVests = {};
+        Object.keys(players).forEach(pid => {
+            resetVests[`room/players/${pid}/vestActive`] = false;
+        });
+        await update(ref(db), resetVests);
+
+        await remove(ref(db, "room/night/chat"));
+        await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null });
+        await remove(ref(db, "room/votes")); 
+        await set(ref(db, "room/gamePhase"), "day");
     
-    const mafiaVotesRaw = night.mafiaVotes || {};
-    let voteCounts = {};
-    let grandmaVotes = 0;
-    let grandmaAttacker = null;
-
-    Object.entries(mafiaVotesRaw).forEach(([attackerId, targetId]) => {
-        voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
-        if (players[targetId].role === "grandma") {
-            grandmaVotes++;
-            grandmaAttacker = attackerId;
-        }
-    });
-
-    let maxVotes = 0;
-    let potentialVictims = [];
-    for (const [pid, count] of Object.entries(voteCounts)) {
-        if (count > maxVotes) { maxVotes = count; potentialVictims = [pid]; } 
-        else if (count === maxVotes) { potentialVictims.push(pid); }
+    } catch (e) {
+        console.error(e);
+        alert("Day Transition Error: " + e.message);
     }
-    let victimId = potentialVictims.length > 0 ? potentialVictims[Math.floor(Math.random() * potentialVictims.length)] : null;
-    let finalNightDeathId = victimId;
-    let nightDeathReason = "Killed by Mafia";
-
-    if (grandmaVotes > 0) {
-        if (grandmaVotes >= 2) {
-            const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
-            if (badGuys.length > 0) {
-                finalNightDeathId = badGuys[Math.floor(Math.random() * badGuys.length)][0];
-                nightDeathReason = "Grandma Ricochet";
-            } else finalNightDeathId = null;
-        } 
-        else if (grandmaVotes === 1 && grandmaAttacker) {
-            finalNightDeathId = grandmaAttacker;
-            nightDeathReason = "Grandma Revenge";
-        }
-    }
-
-    let wasSaved = false;
-    let savedName = "Unknown";
-    if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
-        wasSaved = true;
-        savedName = getName(finalNightDeathId);
-        finalNightDeathId = null; 
-        nightDeathReason = "Saved by Doctor";
-    }
-
-    let vestSaved = false;
-    if (finalNightDeathId && players[finalNightDeathId].vestActive) {
-        vestSaved = true;
-        finalNightDeathId = null;
-        nightDeathReason = "Bulletproof Vest";
-    }
-
-    let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
-    if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
-    else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
-    else if (vestSaved) alertMsg += `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
-    else alertMsg += `🛡️ No one died.`;
-    alert(alertMsg);
-
-    const resetVests = {};
-    Object.keys(players).forEach(pid => {
-        resetVests[`room/players/${pid}/vestActive`] = false;
-    });
-    await update(ref(db), resetVests);
-
-    await remove(ref(db, "room/night/chat"));
-    await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null });
-    await remove(ref(db, "room/votes")); 
-    await set(ref(db, "room/gamePhase"), "day");
 });
 
 endDayBtn.addEventListener('click', async () => {
@@ -340,7 +342,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS & CHAT
+// 4. PLAYER ACTIONS
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -399,7 +401,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN SYNC LOOP
+// 5. MAIN UI LOOP
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
