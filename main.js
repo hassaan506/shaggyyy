@@ -39,6 +39,7 @@ const scoreMafia = document.getElementById("scoreMafia");
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
 const hardResetBtn = document.getElementById("hardResetBtn");
+const softResetBtn = document.getElementById("softResetBtn");
 const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
 const endDayBtn = document.getElementById("endVoteBtn");
@@ -87,7 +88,7 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("isHost", "false");
         await set(refP, { name, role: null, statusTags: "" });
         screenJoin.classList.add("hidden");
-        location.reload();
+        // No reload needed, onValue will pick it up
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
@@ -95,7 +96,7 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST
+// 2. LOBBY & HOST CLAIM
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
@@ -103,39 +104,68 @@ claimHostBtn.addEventListener('click', async () => {
     if(!myName) return location.reload();
 
     await set(ref(db, "room/host"), { name: myName });
+    
+    // Remove self from player list (become Admin)
     if (myTempId && myTempId !== "HOST") {
         try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
+
     await set(ref(db, "room/gamePhase"), "Waiting");
     localStorage.setItem("isHost", "true");
     localStorage.setItem("playerId", "HOST");
-    location.reload();
+    // No reload needed
 });
+
+// --- SOFT RESET LOGIC (NEXT ROUND) ---
+async function performSoftReset() {
+    const playersSnap = await get(ref(db, "room/players"));
+    const players = playersSnap.val() || {};
+    const updates = {};
+    
+    // 1. Reset all existing players
+    Object.keys(players).forEach(pid => {
+        updates[`room/players/${pid}/role`] = null;
+        updates[`room/players/${pid}/statusTags`] = "";
+        updates[`room/players/${pid}/vestUsed`] = false;
+        updates[`room/players/${pid}/vestActive`] = false;
+    });
+
+    // 2. Add the CURRENT HOST back as a PLAYER
+    // (Since they are giving up the throne, they need to be in the list to be picked or to play)
+    const myName = localStorage.getItem("name");
+    if (myName) {
+        const newPlayerRef = push(ref(db, "room/players"));
+        updates[`room/players/${newPlayerRef.key}`] = { name: myName, role: null, statusTags: "" };
+        localStorage.setItem("playerId", newPlayerRef.key); // Update local ID
+    }
+
+    // 3. Clear Game Data (But keep Scoreboard)
+    updates["room/night"] = null;
+    updates["room/votes"] = null;
+    updates["room/pendingResults"] = null;
+    updates["room/publicReport"] = null;
+    updates["room/winMessage"] = null;
+    updates["room/deckDealt"] = false;
+    updates["room/isShuffling"] = false;
+    updates["room/hasShuffled"] = false;
+    
+    // 4. Return to Lobby
+    updates["room/gamePhase"] = "Lobby";
+    updates["room/host"] = null; // Vacate the throne
+
+    await update(ref(db), updates);
+    localStorage.setItem("isHost", "false");
+}
 
 nextRoundBtn.addEventListener('click', async () => {
     if (confirm("Start Next Round? Scores will be kept.")) {
-        const playersSnap = await get(ref(db, "room/players"));
-        const players = playersSnap.val() || {};
-        const updates = {};
-        Object.keys(players).forEach(pid => {
-            updates[`room/players/${pid}/role`] = null;
-            updates[`room/players/${pid}/statusTags`] = "";
-            updates[`room/players/${pid}/vestUsed`] = false;
-            updates[`room/players/${pid}/vestActive`] = false;
-        });
-        updates["room/night"] = null;
-        updates["room/votes"] = null;
-        updates["room/pendingResults"] = null;
-        updates["room/publicReport"] = null;
-        updates["room/winMessage"] = null;
-        updates["room/deckDealt"] = false;
-        updates["room/isShuffling"] = false;
-        updates["room/hasShuffled"] = false;
-        updates["room/gamePhase"] = "Lobby";
-        updates["room/host"] = null;
-        await update(ref(db), updates);
-        localStorage.setItem("isHost", "false");
-        location.reload();
+        await performSoftReset();
+    }
+});
+
+softResetBtn.addEventListener('click', async () => {
+    if (confirm("RESTART ROUND? This keeps players & scores but resets roles.")) {
+        await performSoftReset();
     }
 });
 
@@ -300,7 +330,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS
+// 4. PLAYER ACTIONS & CHAT
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -359,7 +389,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN SYNC LOOP (Visual Logic Update)
+// 5. MAIN SYNC LOOP
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -382,14 +412,18 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // --- HOST STATUS ---
+    // HOST STATUS
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
         document.getElementById("hostStatus").style.color = "#28a745";
+    } else {
+        document.getElementById("hostName").innerText = "None";
+        document.getElementById("hostStatus").innerText = "Waiting for Host...";
+        document.getElementById("hostStatus").style.color = "orange";
     }
 
-    // --- DAY / NIGHT THEME SWITCHER ---
+    // DAY/NIGHT THEME
     document.getElementById("phaseText").innerText = phase;
     if(phase === "night") {
         document.body.className = "night";
@@ -398,20 +432,24 @@ onValue(ref(db, "room"), (snap) => {
         document.body.className = "day";
         voteTargets.innerHTML = "";
     } else {
-        document.body.className = ""; // Neutral (Waiting/Lobby)
+        document.body.className = "";
     }
 
-    // --- SCREEN NAVIGATION ---
+    // LOBBY vs GAME SCREEN LOGIC
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
         gameOverModal.classList.add("hidden");
-        return;
+        return; // Stop rendering game
     } else {
         screenLobby.classList.add("hidden");
-        if (isHost || (myId && myId !== "HOST")) screenGame.classList.remove("hidden");
+        // Show Game Screen if Host OR Valid Player
+        if (isHost || (myId && myId !== "HOST")) {
+            screenGame.classList.remove("hidden");
+        }
     }
 
+    // GAME OVER MODAL
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
@@ -450,6 +488,7 @@ onValue(ref(db, "room"), (snap) => {
         }
     }
 
+    // RENDER PLAYERS
     playersList.innerHTML = "";
     if (data.players) {
         const me = data.players[myId];
@@ -483,22 +522,21 @@ onValue(ref(db, "room"), (snap) => {
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
-                kickBtn.addEventListener('click', (e) => {
+                kickBtn.onclick = (e) => {
                     e.stopPropagation();
                     if(confirm(`Kick ${p.name}?`)) remove(ref(db, `room/players/${pid}`));
-                });
+                };
                 div.appendChild(kickBtn);
 
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
                     lateDealBtn.innerText = "🃏 Deal Entry";
-                    lateDealBtn.addEventListener('click', (e) => {
+                    lateDealBtn.onclick = (e) => {
                         e.stopPropagation();
-                        const r = prompt("Role? (c=civilian, m=mafia)", "c");
-                        const newRole = (r && r.toLowerCase() === 'm') ? "mafia" : "civilian";
-                        update(ref(db, `room/players/${pid}`), { role: newRole, statusTags: "" });
-                    });
+                        // INSTANT DEAL CIVILIAN
+                        update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
+                    };
                     div.appendChild(lateDealBtn);
                 }
             }
@@ -514,7 +552,8 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
-            if (me && !amDead) { 
+            // BUTTON LOGIC
+            if (me && !amDead && me.role) { 
                 const nightData = data.night || {};
                 if (phase === "night") {
                     let alreadyVoted = false;
