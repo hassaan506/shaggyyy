@@ -5,9 +5,9 @@
 
 body { 
     min-height: 100vh;
-    padding-top: 60px; /* Space for Scoreboard */
+    padding-top: 60px; 
     transition: background 1.0s ease, color 1.0s ease;
-    background-color: #1a1a1a; /* Default Lobby BG */
+    background-color: #1a1a1a; 
     color: #ddd;
     overflow-x: hidden;
 }
@@ -41,181 +41,94 @@ button { touch-action: manipulation; outline: none; }
     box-shadow: 20px 20px 0 -3px rgba(0,0,0,0.1), -10px 30px 0 -5px rgba(0,0,0,0.1);
 }
 
-/* ANIMATIONS */
 @keyframes sunPulse { 0% { transform: scale(1); box-shadow: 0 0 50px #ff8c00; } 100% { transform: scale(1.1); box-shadow: 0 0 80px #ffa500; } }
 @keyframes moonFloat { 0% { transform: translateY(0); } 100% { transform: translateY(15px); } }
 
 /* ---------------------------------------------
-    2. THEMES (DAY VS NIGHT)
+    2. THEMES
 --------------------------------------------- */
-
-/* ☀️ DAY MODE: Bright White */
-body.day {
-    background-color: #f4f4f4;
-    background-image: linear-gradient(to bottom, #ffffff, #e0e0e0);
-    color: #333;
-}
+body.day { background-color: #f4f4f4; background-image: linear-gradient(to bottom, #ffffff, #e0e0e0); color: #333; }
 body.day .sun { top: 80px; animation: sunPulse 4s infinite alternate; }
-body.day .joinCard, body.day .playerCard, body.day .topBar {
-    background: #ffffff; border: 1px solid #ccc; box-shadow: 0 8px 20px rgba(0,0,0,0.1); color: #000;
-}
+body.day .joinCard, body.day .playerCard, body.day .topBar { background: #ffffff; border: 1px solid #ccc; box-shadow: 0 8px 20px rgba(0,0,0,0.1); color: #000; }
 body.day .gameTitle { color: #d32f2f; text-shadow: 2px 2px 0px #aaa; }
 
-/* 🌙 NIGHT MODE: Pitch Black */
-body.night {
-    background-color: #000000;
-    background-image: radial-gradient(circle at center, #0a0a15 0%, #000000 90%);
-    color: #aaccff;
-}
+body.night { background-color: #000000; background-image: radial-gradient(circle at center, #0a0a15 0%, #000000 90%); color: #aaccff; }
 body.night .moon { top: 80px; animation: moonFloat 6s infinite ease-in-out alternate; }
-body.night .joinCard, body.night .playerCard, body.night .topBar {
-    background: #050510; border: 1px solid #1c1c4f;
-    box-shadow: 0 0 25px rgba(0, 50, 255, 0.15), inset 0 0 20px rgba(0,0,0,0.8); color: #fff;
-}
+body.night .joinCard, body.night .playerCard, body.night .topBar { background: #050510; border: 1px solid #1c1c4f; box-shadow: 0 0 25px rgba(0, 50, 255, 0.15), inset 0 0 20px rgba(0,0,0,0.8); color: #fff; }
 body.night .gameTitle { color: #3b5bdb; text-shadow: 0 0 15px rgba(59, 91, 219, 0.8); }
 
 /* ---------------------------------------------
-    3. JOIN SCREEN & LOBBY (VIP STYLE)
+    3. UI ELEMENTS
 --------------------------------------------- */
-.joinCard { 
-    padding: 40px; border-radius: 20px; text-align: center; 
-    margin-top: 5vh; width: 90%; max-width: 400px; 
-    transition: background 1s, border 1s, box-shadow 1s;
-}
+.joinCard { padding: 40px; border-radius: 20px; text-align: center; margin-top: 5vh; width: 90%; max-width: 400px; transition: background 1s; }
 .gameTitle { font-family: 'Creepster', cursive; font-size: 64px; letter-spacing: 4px; margin-bottom: 5px; transition: color 1s; }
 .author { font-size: 14px; font-weight: bold; opacity: 0.6; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 1px solid #888; display: inline-block; }
-
-.joinCard input { 
-    padding: 15px; margin: 15px 0; width: 100%; border-radius: 30px; 
-    font-size: 18px; text-align: center; transition: 0.3s;
-}
+.joinCard input { padding: 15px; margin: 15px 0; width: 100%; border-radius: 30px; font-size: 18px; text-align: center; transition: 0.3s; }
 body.day .joinCard input { background: #f0f2f5; border: 2px solid #ccc; color: #333; }
 body.night .joinCard input { background: #111; border: 2px solid #444; color: #fff; }
 
-/* Lobby Specifics */
-#screenLobby .joinCard {
-    background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.5); color: white;
-}
+#screenLobby .joinCard { background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.5); color: white; }
 body.day #screenLobby .joinCard { background: rgba(255, 255, 255, 0.9); border: 1px solid #ccc; color: #333; }
 #screenLobby p:first-of-type { font-size: 18px; font-weight: 600; margin-bottom: 20px; animation: pulseText 1.5s infinite; }
 @keyframes pulseText { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 #lobbyControls { display: flex; flex-direction: column; gap: 15px; margin-top: 25px; }
 
-/* GOLD HOST BUTTON */
-#claimHostBtn {
-    width: 100%; padding: 20px; font-size: 20px; text-transform: uppercase; letter-spacing: 2px;
-    border: none; border-radius: 12px; cursor: pointer; font-weight: 900; color: #4a3b00;
-    background: linear-gradient(135deg, #ffd700 0%, #fdb931 100%);
-    box-shadow: 0 6px 20px rgba(253, 185, 49, 0.4); position: relative; overflow: hidden;
-}
+#claimHostBtn { width: 100%; padding: 20px; font-size: 20px; text-transform: uppercase; letter-spacing: 2px; border: none; border-radius: 12px; cursor: pointer; font-weight: 900; color: #4a3b00; background: linear-gradient(135deg, #ffd700 0%, #fdb931 100%); box-shadow: 0 6px 20px rgba(253, 185, 49, 0.4); position: relative; overflow: hidden; }
 #claimHostBtn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 10px 30px rgba(253, 185, 49, 0.6); }
 
 /* ---------------------------------------------
-    4. BUTTONS
+    4. BUTTONS & GRID
 --------------------------------------------- */
-.primary { 
-    width: 100%; padding: 15px; background: linear-gradient(to bottom, #ff5f5f, #c70000); 
-    color: white; border: none; border-radius: 30px; margin-top: 10px; font-size: 18px; 
-    font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(200,0,0,0.3); transition: 0.2s;
-}
+.primary { width: 100%; padding: 15px; background: linear-gradient(to bottom, #ff5f5f, #c70000); color: white; border: none; border-radius: 30px; margin-top: 10px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(200,0,0,0.3); transition: 0.2s; }
 .primary:hover { background: linear-gradient(to bottom, #ff7f7f, #e60000); transform: translateY(-2px); }
 .primary:disabled { background: #888; cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
 
-/* KICK BUTTON */
-.kickBtn {
-    position: absolute; top: -12px; right: -12px; background: linear-gradient(135deg, #ff4d4d, #990000);
-    color: white; border: 2px solid #fff; border-radius: 50%; width: 30px; height: 30px; 
-    font-weight: bold; font-size: 14px; cursor: pointer; z-index: 100;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
-}
+.kickBtn { position: absolute; top: -12px; right: -12px; background: linear-gradient(135deg, #ff4d4d, #990000); color: white; border: 2px solid #fff; border-radius: 50%; width: 30px; height: 30px; font-weight: bold; font-size: 14px; cursor: pointer; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
 .kickBtn:hover { transform: scale(1.2) rotate(90deg); }
 
-/* LATE DEAL BUTTON */
-.lateDealBtn {
-    margin-top: 8px; padding: 6px 12px; background: linear-gradient(to bottom, #4cd964, #28a745);
-    color: white; border: none; border-radius: 20px; font-size: 11px; cursor: pointer; z-index: 100;
-}
+.lateDealBtn { margin-top: 8px; padding: 6px 12px; background: linear-gradient(to bottom, #4cd964, #28a745); color: white; border: none; border-radius: 20px; font-size: 11px; cursor: pointer; z-index: 100; }
 
-/* SKIP BUTTON */
-.skipBtn {
-    background: #6c757d !important; border: 1px solid #555 !important;
-    color: #fff !important; font-style: italic; border-radius: 20px !important;
-}
+.skipBtn { background: #6c757d !important; border: 1px solid #555 !important; color: #fff !important; font-style: italic; border-radius: 20px !important; }
 .skipBtn.selected { background: #343a40 !important; border-color: #fff !important; box-shadow: 0 0 10px white; }
 
-/* VEST BUTTON */
-.vestBtn {
-    width: 100%; padding: 15px; background: linear-gradient(to bottom, #4a90e2, #0056b3);
-    color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold;
-    cursor: pointer; box-shadow: 0 4px 10px rgba(0, 80, 255, 0.3); margin-bottom: 10px; transition: 0.2s;
-}
+.vestBtn { width: 100%; padding: 15px; background: linear-gradient(to bottom, #4a90e2, #0056b3); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0, 80, 255, 0.3); margin-bottom: 10px; transition: 0.2s; }
 .vestBtn:hover { transform: scale(1.02); background: linear-gradient(to bottom, #5aa0f2, #1066c3); }
 
-/* ---------------------------------------------
-    5. GAME UI ELEMENTS
---------------------------------------------- */
-.topBar { 
-    width: 100%; max-width: 1200px; margin-bottom: 20px; padding: 15px; 
-    border-radius: 16px; display: flex; flex-direction: column; gap: 10px; transition: background 1s, border 1s;
-}
+.topBar { width: 100%; max-width: 1200px; margin-bottom: 20px; padding: 15px; border-radius: 16px; display: flex; flex-direction: column; gap: 10px; transition: background 1s, border 1s; }
 .btnGroup { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.btnGroup button { 
-    padding: 10px 18px; cursor: pointer; border: none; border-radius: 20px; font-size: 14px; font-weight: 600; transition: 0.2s;
-}
+.btnGroup button { padding: 10px 18px; cursor: pointer; border: none; border-radius: 20px; font-size: 14px; font-weight: 600; transition: 0.2s; }
 body.day .btnGroup button { background: linear-gradient(to bottom, #4facfe, #00f2fe); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 body.night .btnGroup button { background: #1a1a2a; border: 1px solid #3b5bdb; color: #aaccff; }
 
 .gameContainer { width: 100%; max-width: 1200px; display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
 .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 20px; }
-
-.playerCard { 
-    padding: 15px; border-radius: 12px; text-align: center; position: relative; cursor: pointer; transition: all 0.5s ease;
-}
+.playerCard { padding: 15px; border-radius: 12px; text-align: center; position: relative; cursor: pointer; transition: all 0.5s ease; }
 .playerCard:hover { transform: translateY(-5px); }
 .playerCard img { width: 85px; height: 120px; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
 .emptySlot { width: 85px; height: 120px; border: 2px dashed #aaa; border-radius: 6px; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #777; }
 
-/* ---------------------------------------------
-    6. PANELS & SCOREBOARD
---------------------------------------------- */
 .rightPanel { display: flex; flex-direction: column; gap: 15px; }
 .panel { padding: 20px; border-radius: 16px; transition: 1s; }
 body.day .panel { background: #ffffff; border: 1px solid #eee; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
 body.night .panel { background: #0a0a12; border: 1px solid #1c1c4f; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
 
-.targets button { 
-    padding: 12px; border-radius: 8px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 8px; 
-    font-weight: 500; transition: 0.2s;
-}
+.targets button { padding: 12px; border-radius: 8px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 8px; font-weight: 500; transition: 0.2s; }
 body.day .targets button { background: #f0f2f5; border: 1px solid #ddd; color: #333; }
 body.day .targets button:hover { background: #e4e6eb; transform: translateX(5px); }
 body.day .targets button.selected { background: linear-gradient(to right, #d32f2f, #ff5f5f) !important; color: white !important; border: none; }
-
 body.night .targets button { background: #151520; color: #aaccff; border: 1px solid #333; }
 body.night .targets button:hover { border-color: #3b5bdb; background: #1a1a2a; transform: translateX(5px); }
 body.night .targets button.selected { background: rgba(211, 47, 47, 0.8) !important; border-color: #ff5f5f; color: white !important; box-shadow: 0 0 10px #d32f2f; }
 
-.scoreboard {
-    position: fixed; top: 0; left: 0; width: 100%; background: #000; color: white;
-    display: flex; justify-content: center; gap: 30px; padding: 12px; z-index: 1000; 
-    border-bottom: 2px solid #333; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-}
+.scoreboard { position: fixed; top: 0; left: 0; width: 100%; background: #000; color: white; display: flex; justify-content: center; gap: 30px; padding: 12px; z-index: 1000; border-bottom: 2px solid #333; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
 .townScore { color: #4dabf7; font-weight: 900; font-size: 20px; text-shadow: 0 0 10px #4dabf7; }
 .mafiaScore { color: #e03131; font-weight: 900; font-size: 20px; text-shadow: 0 0 10px #e03131; }
 
-/* ---------------------------------------------
-    7. MODALS, CHAT & ANIMATIONS
---------------------------------------------- */
 #roleModal, #gameOverModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
 .modalContent { background: #fff; padding: 40px; border-radius: 24px; text-align: center; width: 85%; max-width: 350px; }
 body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #d32f2f; }
 
-#mafiaChat {
-    position: fixed; bottom: 20px; left: 20px; width: 280px; height: 320px;
-    background: rgba(10, 10, 18, 0.95); border: 2px solid #d32f2f; border-radius: 12px; 
-    display: flex; flex-direction: column; z-index: 1500; backdrop-filter: blur(5px);
-}
+#mafiaChat { position: fixed; bottom: 20px; left: 20px; width: 280px; height: 320px; background: rgba(10, 10, 18, 0.95); border: 2px solid #d32f2f; border-radius: 12px; display: flex; flex-direction: column; z-index: 1500; backdrop-filter: blur(5px); box-shadow: 0 0 25px rgba(211, 47, 47, 0.4); }
 .chatHeader { background: #d32f2f; color: white; padding: 10px; font-weight: bold; font-size: 13px; text-align: center; border-top-left-radius: 10px; border-top-right-radius: 10px; }
 #chatHistory { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: transparent; }
 .chatMsg { padding: 8px 12px; border-radius: 16px; font-size: 13px; max-width: 85%; color: #eee; }
@@ -224,22 +137,35 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 .chatInputWrapper { display: flex; border-top: 1px solid #333; padding: 10px; background: transparent; }
 #chatInput { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid #444; color: white; padding: 10px; border-radius: 20px; outline: none; }
 
+/* ---------------------------------------------
+    9. REALISTIC RIFFLE SHUFFLE
+--------------------------------------------- */
 .tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
 .cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
 .deckImg { width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); position: absolute; top:0; left:0; transition: transform 0.2s; border: 1px solid #444; }
 .layer1 { transform: rotate(3deg); z-index: -1; }
 .layer2 { transform: rotate(-3deg); z-index: -2; }
 
-/* AGGRESSIVE SHUFFLE */
-.shaking { animation: deckVibrate 0.1s infinite; }
-.shaking .layer1 { animation: flyOutLeft 0.5s infinite ease-in-out alternate; }
-.shaking .layer2 { animation: flyOutRight 0.5s infinite ease-in-out alternate; }
-.shaking .deckImg:first-child { animation: popTop 0.25s infinite alternate; }
+/* The Split & Snap */
+.shaking .layer1 { animation: splitLeft 0.6s infinite ease-in-out; }
+.shaking .layer2 { animation: splitRight 0.6s infinite ease-in-out; }
+.shaking .deckImg:first-child { animation: splitTop 0.6s infinite ease-in-out; }
 
-@keyframes deckVibrate { 0% { transform: translate(0, 0); } 100% { transform: translate(-1px, 1px); } }
-@keyframes flyOutLeft { 0% { transform: rotate(3deg); } 100% { transform: rotate(-20deg) translate(-60px, 10px); } }
-@keyframes flyOutRight { 0% { transform: rotate(-3deg); } 100% { transform: rotate(20deg) translate(60px, 10px); } }
-@keyframes popTop { 0% { transform: scale(1); } 100% { transform: scale(1.05) translateY(-5px); } }
+@keyframes splitLeft {
+    0% { transform: translateX(0) rotate(3deg); }
+    50% { transform: translateX(-60px) rotate(-15deg); }
+    100% { transform: translateX(0) rotate(3deg); }
+}
+@keyframes splitRight {
+    0% { transform: translateX(0) rotate(-3deg); }
+    50% { transform: translateX(60px) rotate(15deg); }
+    100% { transform: translateX(0) rotate(-3deg); }
+}
+@keyframes splitTop {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px) scale(1.05); }
+    100% { transform: translateY(0); }
+}
 
 @media (max-width: 768px) {
     .gameContainer { grid-template-columns: 1fr; }
