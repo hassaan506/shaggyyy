@@ -90,7 +90,10 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("playerId", refP.key);
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
-        await set(refP, { name, role: null, statusTags: "" });
+        
+        // Initialize Vest Stats
+        await set(refP, { name, role: null, statusTags: "", vestUsed: false, vestActive: false });
+        
         screenJoin.classList.add("hidden");
         location.reload();
     } catch (e) {
@@ -122,10 +125,14 @@ nextRoundBtn.addEventListener('click', async () => {
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val() || {};
         const updates = {};
+        
         Object.keys(players).forEach(pid => {
             updates[`room/players/${pid}/role`] = null;
             updates[`room/players/${pid}/statusTags`] = "";
+            updates[`room/players/${pid}/vestUsed`] = false;   // Reset Vest Usage
+            updates[`room/players/${pid}/vestActive`] = false; // Reset Active Vest
         });
+
         updates["room/night"] = null;
         updates["room/votes"] = null;
         updates["room/pendingResults"] = null;
@@ -136,6 +143,7 @@ nextRoundBtn.addEventListener('click', async () => {
         updates["room/hasShuffled"] = false;
         updates["room/gamePhase"] = "Lobby";
         updates["room/host"] = null;
+
         await update(ref(db), updates);
         localStorage.setItem("isHost", "false");
         location.reload();
@@ -178,7 +186,12 @@ dealBtn.addEventListener('click', async () => {
         [roles[i], roles[j]] = [roles[j], roles[i]];
     }
     players.forEach(([pid], i) => {
-        update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "" });
+        update(ref(db, `room/players/${pid}`), { 
+            role: roles[i], 
+            statusTags: "",
+            vestUsed: false,
+            vestActive: false
+        });
     });
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
@@ -190,6 +203,7 @@ nightBtn.addEventListener('click', () => {
     remove(ref(db, "room/pendingResults"));
 });
 
+// --- DAY LOGIC (HOST CALCULATION) ---
 dayBtn.addEventListener('click', async () => {
     const nightSnap = await get(ref(db, "room/night"));
     const night = nightSnap.val() || {};
@@ -219,6 +233,7 @@ dayBtn.addEventListener('click', async () => {
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
+    // 1. Grandma Logic
     if (grandmaVotes > 0) {
         if (grandmaVotes >= 2) {
             const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
@@ -233,6 +248,7 @@ dayBtn.addEventListener('click', async () => {
         }
     }
 
+    // 2. Doctor Save
     let wasSaved = false;
     let savedName = "Unknown";
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
@@ -242,11 +258,28 @@ dayBtn.addEventListener('click', async () => {
         nightDeathReason = "Saved by Doctor";
     }
 
+    // 3. Bulletproof Vest Check (CIVILIAN ONLY)
+    let vestSaved = false;
+    if (finalNightDeathId && players[finalNightDeathId].vestActive) {
+        vestSaved = true;
+        finalNightDeathId = null; // Cancel Death
+        nightDeathReason = "Bulletproof Vest";
+    }
+
+    // 4. Alert Host
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
     if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
     else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
+    else if (vestSaved) alertMsg += `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
     else alertMsg += `🛡️ No one died.`;
     alert(alertMsg);
+
+    // 5. Cleanup: Remove Vests for everyone (One night only)
+    const resetVests = {};
+    Object.keys(players).forEach(pid => {
+        resetVests[`room/players/${pid}/vestActive`] = false;
+    });
+    await update(ref(db), resetVests);
 
     await remove(ref(db, "room/night/chat"));
     await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null });
@@ -289,7 +322,70 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. MAIN UI LOOP
+// 4. PLAYER ACTIONS & CHAT
+// --------------------------------------------------
+sendChatBtn.addEventListener('click', async () => {
+    const text = chatInput.value.trim();
+    if (!text) return;
+    const myName = localStorage.getItem("name");
+    const pid = localStorage.getItem("playerId");
+    await push(ref(db, "room/night/chat"), { sender: myName, senderId: pid, text: text });
+    chatInput.value = "";
+});
+
+onValue(ref(db, "room/night/chat"), (snap) => {
+    chatHistory.innerHTML = "";
+    const msgs = snap.val();
+    if (!msgs) return;
+    const myId = localStorage.getItem("playerId");
+    Object.values(msgs).forEach(m => {
+        const div = document.createElement("div");
+        div.classList.add("chatMsg");
+        div.classList.add(m.senderId === myId ? "me" : "them");
+        div.innerHTML = `<b>${m.sender}</b>${m.text}`;
+        chatHistory.appendChild(div);
+    });
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+});
+
+submitActionBtn.addEventListener('click', async () => {
+    const pid = localStorage.getItem("playerId");
+    const role = myCurrentRole; 
+    
+    // VEST LOGIC (Self Action)
+    // This listener handles targets. Vest is handled by a separate button click (see below).
+    
+    const target = submitActionBtn.dataset.target;
+    if(!target) return alert("Select a target first!");
+
+    if (role === "mafia" || role === "godfather") await set(ref(db, `room/night/mafiaVotes/${pid}`), target);
+    else if (role === "doctor") await set(ref(db, "room/night/doctorSave"), target);
+    else if (role === "detective") {
+        await set(ref(db, `room/night/detectiveAction/${pid}`), true);
+        const tSnap = await get(ref(db, `room/players/${target}/role`));
+        const tRole = tSnap.val();
+        const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
+        alert(`Investigation Result:\n${getName(target)} is ${isBad}`);
+    }
+    submitActionBtn.innerText = "Submitted";
+    submitActionBtn.disabled = true;
+    actionPanel.classList.add("hidden");
+});
+
+submitVoteBtn.addEventListener('click', async () => {
+    const pid = localStorage.getItem("playerId");
+    const target = submitVoteBtn.dataset.vote;
+    if(!target) return alert("Select a player first!");
+    await set(ref(db, `room/votes/${pid}`), target);
+});
+
+onValue(ref(db, "room/publicReport"), (snap) => {
+    const msg = snap.val();
+    if (msg) alert(msg);
+});
+
+// --------------------------------------------------
+// 5. MAIN UI LOOP
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -312,7 +408,6 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // --- HOST & LOBBY UI ---
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
@@ -340,7 +435,6 @@ onValue(ref(db, "room"), (snap) => {
         gameOverModal.classList.add("hidden");
     }
 
-    // --- HOST CONTROLS ---
     if(isHost) {
         hostControls.classList.remove("hidden");
         endDayBtn.classList.toggle("hidden", phase !== "day");
@@ -356,6 +450,7 @@ onValue(ref(db, "room"), (snap) => {
         const deckImg = document.querySelector(".cardDeck");
         if(deckImg) data.isShuffling ? deckImg.classList.add("shaking") : deckImg.classList.remove("shaking");
         deckStatus.innerText = data.isShuffling ? "Shuffling..." : "Ready";
+        
         if(isHost) {
             const canDeal = data.hasShuffled === true;
             dealBtn.disabled = !canDeal;
@@ -363,17 +458,12 @@ onValue(ref(db, "room"), (snap) => {
         }
     }
 
-    // --- DAY/NIGHT VISUALS ---
     document.getElementById("phaseText").innerText = phase;
-    if(phase === "night") {
-        document.body.className = "night";
-        actionTargets.innerHTML = "";
-    } else {
-        document.body.className = "day";
-        voteTargets.innerHTML = "";
-    }
+    document.body.className = phase === "night" ? "night" : "day";
+    
+    if(phase !== "night") { actionTargets.innerHTML = ""; }
+    if(phase !== "day") voteTargets.innerHTML = "";
 
-    // --- RENDER PLAYERS ---
     playersList.innerHTML = "";
     if (data.players) {
         const me = data.players[myId];
@@ -403,19 +493,16 @@ onValue(ref(db, "room"), (snap) => {
             const div = document.createElement("div");
             div.classList.add("playerCard");
             
-            // --- HOST: KICK & LATE DEAL BUTTONS ---
             if(isHost) {
-                // Kick Button
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
                 kickBtn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevents card flip
+                    e.stopPropagation();
                     if(confirm(`Kick ${p.name}?`)) remove(ref(db, `room/players/${pid}`));
                 });
                 div.appendChild(kickBtn);
 
-                // Late Deal Button
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
@@ -441,7 +528,6 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
-            // BUTTON GENERATION
             if (me && !amDead) { 
                 const nightData = data.night || {};
                 if (phase === "night") {
@@ -449,19 +535,43 @@ onValue(ref(db, "room"), (snap) => {
                     if (amIMafia && nightData.mafiaVotes && nightData.mafiaVotes[myId]) alreadyVoted = true;
                     if (myCurrentRole === "doctor" && nightData.doctorSave) alreadyVoted = true;
                     if (myCurrentRole === "detective" && nightData.detectiveAction && nightData.detectiveAction[myId]) alreadyVoted = true;
+                    if (myCurrentRole === "civilian" && me.vestActive) alreadyVoted = true; // Vest logic
 
                     if (alreadyVoted) {
                         actionPanel.classList.remove("hidden");
                         actionPanel.innerHTML = "<h3>Night Action</h3><p>Action Submitted.</p>";
                     } else {
+                        // Reset Panel
                         if(actionPanel.innerHTML.includes("Action Submitted")) actionPanel.innerHTML = `<h3>Night Action</h3><p id="actionInstruction">Select a target...</p><div id="actionTargets" class="targets"></div><button id="submitActionBtn" class="primary" disabled>Submit Action</button>`;
+                        
                         let canTarget = false;
                         if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) canTarget = true;
                         else if (myCurrentRole === "doctor") canTarget = true;
                         else if (myCurrentRole === "detective" && !isMe) canTarget = true;
 
-                        if (canTarget) createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
-                        actionPanel.classList.remove("hidden");
+                        // --- CIVILIAN VEST BUTTON (Self only) ---
+                        if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
+                            // Check if button already exists to prevent dupes
+                            if(!document.getElementById("vestBtn")) {
+                                const vestBtn = document.createElement("button");
+                                vestBtn.id = "vestBtn";
+                                vestBtn.className = "vestBtn";
+                                vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
+                                vestBtn.onclick = async () => {
+                                    if(confirm("Use your ONE bulletproof vest tonight?")) {
+                                        await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
+                                        // Visual feedback handled by 'alreadyVoted' loop on next refresh
+                                    }
+                                };
+                                actionPanel.prepend(vestBtn); // Add to top of action panel
+                                actionPanel.classList.remove("hidden");
+                            }
+                        }
+
+                        if (canTarget) {
+                            createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
+                            actionPanel.classList.remove("hidden");
+                        }
                     }
                 }
                 
@@ -474,7 +584,6 @@ onValue(ref(db, "room"), (snap) => {
                         
                         createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
                         
-                        // Add SKIP Button (Once)
                         const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
                         if(!skipExists) {
                             const skipBtn = document.createElement("button");
@@ -517,7 +626,6 @@ function createBtn(container, name, pid, btn, datasetKey) {
     container.appendChild(b);
 }
 
-// ... (REST OF HELPERS AND EVENT LISTENERS - SAME AS BEFORE)
 async function pushTag(pid, tag) {
     const refP = ref(db, `room/players/${pid}`);
     const snap = await get(refP);
@@ -558,38 +666,6 @@ async function checkWinCondition() {
         await update(ref(db, "room/scoreboard"), scores);
     }
 }
-
-submitActionBtn.addEventListener('click', async () => {
-    const pid = localStorage.getItem("playerId");
-    const role = myCurrentRole; 
-    const target = submitActionBtn.dataset.target;
-    if(!target) return alert("Select a target first!");
-
-    if (role === "mafia" || role === "godfather") await set(ref(db, `room/night/mafiaVotes/${pid}`), target);
-    else if (role === "doctor") await set(ref(db, "room/night/doctorSave"), target);
-    else if (role === "detective") {
-        await set(ref(db, `room/night/detectiveAction/${pid}`), true);
-        const tSnap = await get(ref(db, `room/players/${target}/role`));
-        const tRole = tSnap.val();
-        const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
-        alert(`Investigation Result:\n${getName(target)} is ${isBad}`);
-    }
-    submitActionBtn.innerText = "Submitted";
-    submitActionBtn.disabled = true;
-    actionPanel.classList.add("hidden");
-});
-
-submitVoteBtn.addEventListener('click', async () => {
-    const pid = localStorage.getItem("playerId");
-    const target = submitVoteBtn.dataset.vote;
-    if(!target) return alert("Select a player first!");
-    await set(ref(db, `room/votes/${pid}`), target);
-});
-
-onValue(ref(db, "room/publicReport"), (snap) => {
-    const msg = snap.val();
-    if (msg) alert(msg);
-});
 
 hardResetBtn.addEventListener('click', async () => {
     if (confirm("HARD RESET? This kicks everyone.")) {
