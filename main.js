@@ -16,93 +16,145 @@ const db = getDatabase(app);
 
 // --- DOM ELEMENTS ---
 const screenJoin = document.getElementById("screenJoin");
+const screenLobby = document.getElementById("screenLobby"); // NEW
 const screenGame = document.getElementById("screenGame");
 const playerNameInput = document.getElementById("playerName");
-const joinHostBtn = document.getElementById("joinHostBtn");
-const joinPlayerBtn = document.getElementById("joinPlayerBtn");
+const firstJoinBtn = document.getElementById("firstJoinBtn"); // Renamed
+const claimHostBtn = document.getElementById("claimHostBtn"); // NEW
 
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
 const hostFeed = document.getElementById("hostFeed");
 const liveVoteList = document.getElementById("liveVoteList");
 
+// Scoreboard
+const scoreboard = document.getElementById("scoreboard");
+const scoreTown = document.getElementById("scoreTown");
+const scoreMafia = document.getElementById("scoreMafia");
+
 // Controls
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
-const resetBtn = document.getElementById("resetBtn");
+const hardResetBtn = document.getElementById("hardResetBtn");
 const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
 const endDayBtn = document.getElementById("endVoteBtn");
-const exitBtn = document.getElementById("exitBtn");
 
-// Panels
+// Modals
+const gameOverModal = document.getElementById("gameOverModal");
+const nextRoundBtn = document.getElementById("nextRoundBtn"); // NEW
+const modalExitBtn = document.getElementById("modalExitBtn");
+const roleModal = document.getElementById("roleModal");
+
+// Game Areas
 const centralDeck = document.getElementById("centralDeck");
 const deckStatus = document.getElementById("deckStatus");
-const roleModal = document.getElementById("roleModal");
-const gameOverModal = document.getElementById("gameOverModal");
-const modalResetBtn = document.getElementById("modalResetBtn");
-const modalExitBtn = document.getElementById("modalExitBtn");
 const actionPanel = document.getElementById("actionPanel");
 const votingPanel = document.getElementById("votingPanel");
-
-// Chat
 const mafiaChat = document.getElementById("mafiaChat");
 const chatHistory = document.getElementById("chatHistory");
 const chatInput = document.getElementById("chatInput");
 const sendChatBtn = document.getElementById("sendChatBtn");
 
-// Actions
+// Action Buttons
 const submitActionBtn = document.getElementById("submitActionBtn");
 const submitVoteBtn = document.getElementById("submitVoteBtn");
 const actionTargets = document.getElementById("actionTargets");
 const voteTargets = document.getElementById("voteTargets");
 
-// State
 let allPlayersCache = {}; 
 let myCurrentRole = null;
+let mafiaSelections = [];
 
 // --------------------------------------------------
-// 1. JOIN LOGIC
+// 1. INITIALIZATION & LOGIN LOGIC
 // --------------------------------------------------
-joinHostBtn.addEventListener('click', async () => {
+
+// Check if user is already logged in from previous round
+async function initGame() {
+    const storedId = localStorage.getItem("playerId");
+    const storedName = localStorage.getItem("name");
+
+    if (storedId && storedName) {
+        // AUTO LOGIN
+        console.log("Auto-logging in as " + storedName);
+        screenJoin.classList.add("hidden");
+        // We don't show screenGame yet, onValue will decide if we go to Lobby or Game
+    } else {
+        // SHOW LOGIN
+        screenJoin.classList.remove("hidden");
+    }
+}
+initGame();
+
+// First Time Join (No Host/Player distinction yet, just "Enter Room")
+firstJoinBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
-    if (!name) return alert("Please enter your name!");
-    joinHostBtn.disabled = true;
-    try {
-        await set(ref(db, "room/host"), { name });
-        await set(ref(db, "room/deckDealt"), false); 
-        await set(ref(db, "room/gamePhase"), "Waiting");
-        await set(ref(db, "room/isShuffling"), false);
-        await remove(ref(db, "room/players")); 
-        await remove(ref(db, "room/votes"));
-        await remove(ref(db, "room/night"));
-        await remove(ref(db, "room/publicReport"));
-        await remove(ref(db, "room/winMessage"));
-        localStorage.setItem("playerId", "HOST");
-        localStorage.setItem("name", name);
-        localStorage.setItem("isHost", "true");
-        location.reload();
-    } catch (e) { alert("Join Error: " + e.message); joinHostBtn.disabled = false; }
+    if (!name) return alert("Enter name");
+
+    // Generate ID locally to avoid DB dependency for simple entry
+    // In a real app we push to DB, but here we check Lobby state first.
+    // We will actually push to 'players' list immediately so they appear.
+    
+    const refP = push(ref(db, "room/players"));
+    await set(refP, { name, role: null, statusTags: "" });
+
+    localStorage.setItem("playerId", refP.key);
+    localStorage.setItem("name", name);
+    localStorage.setItem("isHost", "false"); // Default to false
+    
+    location.reload();
 });
 
-joinPlayerBtn.addEventListener('click', async () => {
-    const name = playerNameInput.value.trim();
-    if (!name) return alert("Please enter your name!");
-    joinPlayerBtn.disabled = true;
-    try {
-        const roomSnap = await get(ref(db, "room/host"));
-        if (!roomSnap.exists()) throw new Error("No Host found!");
-        const refP = push(ref(db, "room/players"));
-        await set(refP, { name, role: null, statusTags: "" });
-        localStorage.setItem("playerId", refP.key);
-        localStorage.setItem("name", name);
-        localStorage.setItem("isHost", "false");
-        location.reload();
-    } catch (e) { alert("Join Error: " + e.message); joinPlayerBtn.disabled = false; }
+// --------------------------------------------------
+// 2. LOBBY & HOST SELECTION
+// --------------------------------------------------
+claimHostBtn.addEventListener('click', async () => {
+    const myName = localStorage.getItem("name");
+    if(!myName) return location.reload();
+
+    // Atomic transaction to claim host? Simple set for now.
+    await set(ref(db, "room/host"), { name: myName });
+    await set(ref(db, "room/gamePhase"), "Waiting"); // Moves everyone to Game Screen
+    
+    localStorage.setItem("isHost", "true");
+    location.reload(); // Reload to refresh UI state
 });
 
 // --------------------------------------------------
-// 2. SHUFFLE & DEAL
+// 3. NEXT ROUND (SOFT RESET)
+// --------------------------------------------------
+nextRoundBtn.addEventListener('click', async () => {
+    if (confirm("Start Next Round? Scores will be kept.")) {
+        const playersSnap = await get(ref(db, "room/players"));
+        const players = playersSnap.val() || {};
+
+        // 1. Reset all players (Keep names, remove roles/tags)
+        const updates = {};
+        Object.keys(players).forEach(pid => {
+            updates[`room/players/${pid}/role`] = null;
+            updates[`room/players/${pid}/statusTags`] = "";
+        });
+
+        // 2. Clear Round Data
+        updates["room/night"] = null;
+        updates["room/votes"] = null;
+        updates["room/pendingResults"] = null;
+        updates["room/publicReport"] = null;
+        updates["room/winMessage"] = null;
+        updates["room/deckDealt"] = false;
+        updates["room/isShuffling"] = false;
+        
+        // 3. Move to Lobby Phase & Vacate Host
+        updates["room/gamePhase"] = "Lobby";
+        updates["room/host"] = null; // Force re-selection
+
+        await update(ref(db), updates);
+    }
+});
+
+// --------------------------------------------------
+// 4. SHUFFLE & DEAL
 // --------------------------------------------------
 shuffleBtn.addEventListener('click', async () => {
     await set(ref(db, "room/isShuffling"), true);
@@ -136,7 +188,6 @@ dealBtn.addEventListener('click', async () => {
 
     roles.push("doctor");
     roles.push("detective");
-    
     if (count > 5) roles.push("grandma");
 
     while (roles.length < count) roles.push("civilian");
@@ -156,7 +207,7 @@ dealBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS
+// 5. HOST CONTROLS
 // --------------------------------------------------
 onValue(ref(db, "room/votes"), (snap) => {
     if (localStorage.getItem("isHost") !== "true") return;
@@ -180,12 +231,16 @@ nightBtn.addEventListener('click', () => {
 });
 
 dayBtn.addEventListener('click', async () => {
+    // ... (SAME DAY LOGIC AS BEFORE - No changes needed for persistence)
     const nightSnap = await get(ref(db, "room/night"));
     const night = nightSnap.val() || {};
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val();
     
-    // Vote Tally
+    const aliveMafiaCount = Object.values(players).filter(p => 
+        (p.role === 'mafia' || p.role === 'godfather') && !p.statusTags
+    ).length;
+
     const mafiaVotesRaw = night.mafiaVotes || {};
     let voteCounts = {};
     let grandmaVotes = 0;
@@ -206,35 +261,24 @@ dayBtn.addEventListener('click', async () => {
         else if (count === maxVotes) { potentialVictims.push(pid); }
     }
     
-    let victimId = null;
-    if (potentialVictims.length > 0) {
-        victimId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
-    }
-
+    let victimId = potentialVictims.length > 0 ? potentialVictims[Math.floor(Math.random() * potentialVictims.length)] : null;
     let finalNightDeathId = victimId;
     let nightDeathReason = "Killed by Mafia";
 
-    // Grandma Logic
     if (grandmaVotes > 0) {
         if (grandmaVotes >= 2) {
-            const badGuys = Object.entries(players).filter(([pid, p]) => 
-                (p.role === "mafia" || p.role === "godfather") && !p.statusTags
-            );
+            const badGuys = Object.entries(players).filter(([pid, p]) => (p.role === "mafia" || p.role === "godfather") && !p.statusTags);
             if (badGuys.length > 0) {
-                const [randomBadGuyId, bgData] = badGuys[Math.floor(Math.random() * badGuys.length)];
-                finalNightDeathId = randomBadGuyId;
-                nightDeathReason = "Grandma Ricochet (2+ Votes -> Random Mafia Died)";
-            } else {
-                finalNightDeathId = null; 
-            }
+                finalNightDeathId = badGuys[Math.floor(Math.random() * badGuys.length)][0];
+                nightDeathReason = "Grandma Ricochet";
+            } else finalNightDeathId = null;
         } 
         else if (grandmaVotes === 1 && grandmaAttacker) {
             finalNightDeathId = grandmaAttacker;
-            nightDeathReason = "Grandma Revenge (1 Vote -> Attacker Died)";
+            nightDeathReason = "Grandma Revenge";
         }
     }
 
-    // Doctor Save
     let wasSaved = false;
     let savedName = "Unknown";
     if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
@@ -244,12 +288,10 @@ dayBtn.addEventListener('click', async () => {
         nightDeathReason = "Saved by Doctor";
     }
 
-    // Host Alert
     let alertMsg = `🌙 NIGHT RESULTS (Hidden):\n`;
     if (finalNightDeathId) alertMsg += `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
     else if (wasSaved) alertMsg += `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
     else alertMsg += `🛡️ No one died.`;
-    
     alert(alertMsg);
 
     await remove(ref(db, "room/night/chat"));
@@ -258,11 +300,10 @@ dayBtn.addEventListener('click', async () => {
     await set(ref(db, "room/gamePhase"), "day");
 });
 
-endDayBtn.innerText = "Reveal & End Day";
 endDayBtn.addEventListener('click', async () => {
+    // ... (SAME END DAY LOGIC)
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
-    
     const votesSnap = await get(ref(db, "room/votes"));
     const votes = votesSnap.val() ? Object.values(votesSnap.val()) : [];
     
@@ -283,137 +324,96 @@ endDayBtn.addEventListener('click', async () => {
     if (pending.nightDeathId) {
         await pushTag(pending.nightDeathId, "KILLED");
         report += `💀 Night Casualty: ${getName(pending.nightDeathId)}\n`;
-    } else {
-        report += `🛡️ Night: No casualties.\n`;
     }
-
     if (elimId) {
         await pushTag(elimId, "ELIMINATED");
         report += `⚖️ Voted Out: ${getName(elimId)}\n`;
-    } else {
-        report += `⚖️ Day: No one eliminated.\n`;
     }
-
     await set(ref(db, "room/publicReport"), report);
     await checkWinCondition();
 });
 
-async function pushTag(pid, tag) {
-    const refP = ref(db, `room/players/${pid}`);
-    const snap = await get(refP);
+// --------------------------------------------------
+// 6. WIN CONDITION & SCORE UPDATE
+// --------------------------------------------------
+async function checkWinCondition() {
+    const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
-    let currentTags = snap.val().statusTags || "";
-    if (!currentTags.includes(tag)) {
-        let newTags = currentTags ? `${currentTags} & ${tag}` : tag;
-        await update(refP, { statusTags: newTags });
+    const p = Object.values(snap.val());
+    
+    const activePlayers = p.filter(x => !x.statusTags);
+    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
+    const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
+
+    let winner = null;
+    if (mafiaCount === 0 && activePlayers.length > 0) winner = "TOWN";
+    else if (mafiaCount > townCount && activePlayers.length > 0) winner = "MAFIA";
+
+    if (winner) {
+        // 1. Get Current Score
+        const scoreSnap = await get(ref(db, "room/scoreboard"));
+        let scores = scoreSnap.val() || { town: 0, mafia: 0 };
+
+        // 2. Update Score
+        if (winner === "TOWN") scores.town = (scores.town || 0) + 1;
+        else scores.mafia = (scores.mafia || 0) + 1;
+
+        await update(ref(db, "room/scoreboard"), scores);
+
+        // 3. Set Game Over
+        await set(ref(db, "room/winMessage"), `${winner} WINS!`);
+        await set(ref(db, "room/gamePhase"), "GAME OVER");
     }
 }
 
 // --------------------------------------------------
-// 4. MAFIA CHAT
+// 7. GAME LOOP & UI UPDATES
 // --------------------------------------------------
-sendChatBtn.addEventListener('click', async () => {
-    const text = chatInput.value.trim();
-    if (!text) return;
-    const myName = localStorage.getItem("name");
-    const pid = localStorage.getItem("playerId");
-    await push(ref(db, "room/night/chat"), {
-        sender: myName, senderId: pid, text: text
-    });
-    chatInput.value = "";
-});
-
-onValue(ref(db, "room/night/chat"), (snap) => {
-    chatHistory.innerHTML = "";
-    const msgs = snap.val();
-    if (!msgs) return;
-    const myId = localStorage.getItem("playerId");
-    Object.values(msgs).forEach(m => {
-        const div = document.createElement("div");
-        div.classList.add("chatMsg");
-        div.classList.add(m.senderId === myId ? "me" : "them");
-        div.innerHTML = `<b>${m.sender}</b>${m.text}`;
-        chatHistory.appendChild(div);
-    });
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-});
-
-// --------------------------------------------------
-// 5. ACTIONS & GAME LOOP
-// --------------------------------------------------
-submitActionBtn.addEventListener('click', async () => {
-    const pid = localStorage.getItem("playerId");
-    const role = myCurrentRole; 
-
-    // MAFIA ACTION
-    if (role === "mafia" || role === "godfather") {
-        const target = submitActionBtn.dataset.target;
-        if(!target) return alert("Select a target first!");
-        
-        await set(ref(db, `room/night/mafiaVotes/${pid}`), target);
-        
-        submitActionBtn.innerText = "Vote Submitted";
-        submitActionBtn.disabled = true;
-        actionPanel.classList.add("hidden");
-        return;
-    }
-
-    // OTHER ACTIONS
-    const target = submitActionBtn.dataset.target;
-    if(!target) return alert("Select a target first!");
-
-    if (role === "doctor") await set(ref(db, "room/night/doctorSave"), target);
-    else if (role === "detective") {
-        const tSnap = await get(ref(db, `room/players/${target}/role`));
-        const tRole = tSnap.val();
-        // Record action to DB so we know they voted (using a simple flag)
-        await set(ref(db, `room/night/detectiveAction/${pid}`), true);
-        
-        const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
-        alert(`Investigation Result:\n${getName(target)} is ${isBad}`);
-    }
-    
-    submitActionBtn.disabled = true;
-    submitActionBtn.innerText = "Submitted";
-    actionPanel.classList.add("hidden");
-});
-
-submitVoteBtn.addEventListener('click', async () => {
-    const pid = localStorage.getItem("playerId");
-    const target = submitVoteBtn.dataset.vote;
-    if(!target) return alert("Select a player first!");
-    await set(ref(db, `room/votes/${pid}`), target);
-});
-
-onValue(ref(db, "room/publicReport"), (snap) => {
-    const msg = snap.val();
-    if (msg) alert(msg);
-});
-
-// --- MAIN GAME LOOP WITH FIXES ---
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
+    
+    // --- HANDLE RESET / KICK ---
     if (!data) {
         if (localStorage.getItem("playerId")) {
             localStorage.clear();
-            alert("The Host has ended the game.");
+            alert("Host has hard-reset the game.");
             location.reload();
         }
         return;
     }
 
-    allPlayersCache = data.players || {};
+    // --- SCOREBOARD UPDATE ---
+    const scores = data.scoreboard || { town: 0, mafia: 0 };
+    scoreTown.innerText = scores.town;
+    scoreMafia.innerText = scores.mafia;
+    scoreboard.classList.remove("hidden");
+
+    const phase = data.gamePhase || "Waiting";
     const isHost = localStorage.getItem("isHost") === "true";
     const myId = localStorage.getItem("playerId");
-    const phase = data.gamePhase || "Waiting";
-    const nightData = data.night || {}; // Get night data for checks
-    
+
+    // --- LOBBY PHASE LOGIC ---
+    if (phase === "Lobby") {
+        screenGame.classList.add("hidden");
+        screenLobby.classList.remove("hidden");
+        gameOverModal.classList.add("hidden");
+        return; // Stop rendering game UI
+    } else {
+        screenLobby.classList.add("hidden");
+        if(myId) screenGame.classList.remove("hidden");
+    }
+
+    // --- GAME OVER PHASE ---
     if (phase === "GAME OVER") {
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
+        
         if (isHost) {
-            modalResetBtn.classList.remove("hidden");
-            modalResetBtn.onclick = async () => { if (confirm("Restart Game?")) await remove(ref(db, "room")); };
+            nextRoundBtn.classList.remove("hidden");
+            document.getElementById("waitingForHostText").classList.add("hidden");
+        } else {
+            nextRoundBtn.classList.add("hidden");
+            document.getElementById("waitingForHostText").classList.remove("hidden");
         }
         modalExitBtn.onclick = () => { localStorage.clear(); location.reload(); };
         return; 
@@ -421,12 +421,16 @@ onValue(ref(db, "room"), (snap) => {
         gameOverModal.classList.add("hidden");
     }
 
+    // --- STANDARD GAME UI RENDERING ---
+    allPlayersCache = data.players || {};
+    
     if(isHost) {
         hostControls.classList.remove("hidden");
         endDayBtn.classList.toggle("hidden", phase !== "day");
         hostFeed.classList.remove("hidden");
     }
 
+    // Deck
     const isDealt = data.deckDealt === true;
     if (isDealt) {
         centralDeck.classList.add("hidden");
@@ -445,15 +449,15 @@ onValue(ref(db, "room"), (snap) => {
     if(phase !== "night") { actionTargets.innerHTML = ""; }
     if(phase !== "day") voteTargets.innerHTML = "";
 
+    // Render Players
     playersList.innerHTML = "";
     if (data.players) {
         const me = data.players[myId];
         myCurrentRole = me ? me.role : null;
         const amDead = me && me.statusTags && me.statusTags.length > 0;
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
-        const hasVotedDay = data.votes && data.votes[myId];
-
-        // Chat Visibility
+        
+        // Mafia Chat Visibility
         if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
         else mafiaChat.classList.add("hidden");
 
@@ -484,24 +488,21 @@ onValue(ref(db, "room"), (snap) => {
             };
             playersList.appendChild(div);
 
-            // BUTTON LOGIC
+            // BUTTON LOGIC (Existing Logic)
             if (me && !amDead) { 
+                const nightData = data.night || {};
                 if (phase === "night") {
-                    // --- FIX: CHECK IF ALREADY VOTED TONIGHT ---
-                    let alreadyVotedTonight = false;
-                    if (amIMafia && nightData.mafiaVotes && nightData.mafiaVotes[myId]) alreadyVotedTonight = true;
-                    if (myCurrentRole === "doctor" && nightData.doctorSave) alreadyVotedTonight = true;
-                    if (myCurrentRole === "detective" && nightData.detectiveAction && nightData.detectiveAction[myId]) alreadyVotedTonight = true;
+                    let alreadyVoted = false;
+                    if (amIMafia && nightData.mafiaVotes && nightData.mafiaVotes[myId]) alreadyVoted = true;
+                    if (myCurrentRole === "doctor" && nightData.doctorSave) alreadyVoted = true;
+                    if (myCurrentRole === "detective" && nightData.detectiveAction && nightData.detectiveAction[myId]) alreadyVoted = true;
 
-                    if (alreadyVotedTonight) {
+                    if (alreadyVoted) {
                         actionPanel.classList.remove("hidden");
-                        actionPanel.innerHTML = "<h3>Night Action</h3><p>Action Submitted. Waiting for others...</p>";
+                        actionPanel.innerHTML = "<h3>Night Action</h3><p>Action Submitted.</p>";
                     } else {
-                        // Reset Panel HTML if it was overwritten
-                        if (actionPanel.innerHTML.includes("Action Submitted")) {
-                             actionPanel.innerHTML = `<h3>Night Action</h3><p id="actionInstruction">Select a target...</p><div id="actionTargets" class="targets"></div><button id="submitActionBtn" class="primary" disabled>Submit Action</button>`;
-                        }
-
+                        if(actionPanel.innerHTML.includes("Action Submitted")) actionPanel.innerHTML = `<h3>Night Action</h3><p id="actionInstruction">Select a target...</p><div id="actionTargets" class="targets"></div><button id="submitActionBtn" class="primary" disabled>Submit Action</button>`;
+                        
                         let canTarget = false;
                         if (amIMafia && !targetIsMafia && !isMe) canTarget = true;
                         else if (myCurrentRole === "doctor") canTarget = true;
@@ -513,13 +514,13 @@ onValue(ref(db, "room"), (snap) => {
                         }
                     }
                 }
-                
                 if (phase === "day" && !isMe) {
-                    if (hasVotedDay) {
+                    const hasVoted = data.votes && data.votes[myId];
+                    if (hasVoted) {
                         votingPanel.classList.remove("hidden");
                         votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
                     } else {
-                        if(votingPanel.innerHTML.includes("Vote Submitted")) votingPanel.innerHTML = `<h3>Day Vote</h3><p id="voteInstruction">Who do you want to eliminate?</p><div id="voteTargets" class="targets"></div><button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>`;
+                        if(votingPanel.innerHTML.includes("Vote Submitted")) votingPanel.innerHTML = `<h3>Day Vote</h3><p id="voteInstruction">Who to eliminate?</p><div id="voteTargets" class="targets"></div><button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>`;
                         createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
                         votingPanel.classList.remove("hidden");
                     }
@@ -532,14 +533,13 @@ onValue(ref(db, "room"), (snap) => {
     }
 });
 
+// --- HELPERS ---
 function createBtn(container, name, pid, btn, datasetKey) {
     const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
     if(existing) return;
-
     const b = document.createElement("button");
     b.innerText = name;
     b.dataset.pid = pid;
-    
     b.addEventListener('click', (e) => {
         if(e.cancelable) e.preventDefault(); 
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
@@ -550,42 +550,61 @@ function createBtn(container, name, pid, btn, datasetKey) {
     container.appendChild(b);
 }
 
-window.closeModal = () => document.getElementById("roleModal").style.display = "none";
-function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
-
-async function checkWinCondition() {
-    const snap = await get(ref(db, "room/players"));
+async function pushTag(pid, tag) {
+    const refP = ref(db, `room/players/${pid}`);
+    const snap = await get(refP);
     if (!snap.exists()) return;
-    const p = Object.values(snap.val());
-    
-    const activePlayers = p.filter(x => !x.statusTags);
-
-    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
-
-    if (mafiaCount === 0 && activePlayers.length > 0) {
-        await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
-        await set(ref(db, "room/gamePhase"), "GAME OVER");
-    } 
-    else if (mafiaCount > townCount && activePlayers.length > 0) {
-        await set(ref(db, "room/winMessage"), "MAFIA WINS!");
-        await set(ref(db, "room/gamePhase"), "GAME OVER");
+    let currentTags = snap.val().statusTags || "";
+    if (!currentTags.includes(tag)) {
+        let newTags = currentTags ? `${currentTags} & ${tag}` : tag;
+        await update(refP, { statusTags: newTags });
     }
 }
 
-resetBtn.addEventListener('click', async () => {
-    if (confirm("Reset Game? This will kick all players.")) {
+window.closeModal = () => document.getElementById("roleModal").style.display = "none";
+function getName(id) { return allPlayersCache[id] ? allPlayersCache[id].name : "Unknown"; }
+
+// Hard Reset
+hardResetBtn.addEventListener('click', async () => {
+    if (confirm("HARD RESET? This kicks everyone.")) {
         await remove(ref(db, "room"));
         localStorage.clear();
         location.reload();
     }
 });
 
-exitBtn.addEventListener('click', () => {
-    if(confirm("Exit?")) { localStorage.clear(); location.reload(); }
+// Chat Send
+sendChatBtn.addEventListener('click', async () => {
+    const text = chatInput.value.trim();
+    if (!text) return;
+    const myName = localStorage.getItem("name");
+    const pid = localStorage.getItem("playerId");
+    await push(ref(db, "room/night/chat"), { sender: myName, senderId: pid, text: text });
+    chatInput.value = "";
 });
 
-if (localStorage.getItem("playerId")) {
-    screenJoin.classList.add("hidden");
-    screenGame.classList.remove("hidden");
-}
+// Action Listeners
+submitActionBtn.addEventListener('click', async () => {
+    const pid = localStorage.getItem("playerId");
+    const role = myCurrentRole; 
+    const target = submitActionBtn.dataset.target;
+    if(!target) return alert("Select a target first!");
+
+    if (role === "mafia" || role === "godfather") await set(ref(db, `room/night/mafiaVotes/${pid}`), target);
+    else if (role === "doctor") await set(ref(db, "room/night/doctorSave"), target);
+    else if (role === "detective") {
+        await set(ref(db, `room/night/detectiveAction/${pid}`), true);
+        const tSnap = await get(ref(db, `room/players/${target}/role`));
+        const tRole = tSnap.val();
+        const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
+        alert(`Investigation Result:\n${getName(target)} is ${isBad}`);
+    }
+    submitActionBtn.disabled = true;
+});
+
+submitVoteBtn.addEventListener('click', async () => {
+    const pid = localStorage.getItem("playerId");
+    const target = submitVoteBtn.dataset.vote;
+    if(!target) return alert("Select a player first!");
+    await set(ref(db, `room/votes/${pid}`), target);
+});
