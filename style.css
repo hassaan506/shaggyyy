@@ -316,7 +316,9 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
     #mafiaChat { width: 200px; height: 220px; bottom: 70px; left: 10px; }
 }
 
-/* ADD TO CSS */
+/* ---------------------------------------------
+    7. Civilians Wearing Vest
+--------------------------------------------- */
 .vestBtn {
     width: 100%;
     padding: 15px;
@@ -333,3 +335,4 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 }
 .vestBtn:hover { transform: scale(1.02); background: linear-gradient(to bottom, #5aa0f2, #1066c3); }
 .vestBtn:disabled { background: #555; opacity: 0.6; cursor: not-allowed; transform: none; }
+
