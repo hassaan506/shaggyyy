@@ -36,7 +36,6 @@ const scoreboard = document.getElementById("scoreboard");
 const scoreTown = document.getElementById("scoreTown");
 const scoreMafia = document.getElementById("scoreMafia");
 
-// Controls
 const shuffleBtn = document.getElementById("shuffleBtn");
 const dealBtn = document.getElementById("dealBtn");
 const hardResetBtn = document.getElementById("hardResetBtn");
@@ -45,7 +44,6 @@ const nightBtn = document.getElementById("nightBtn");
 const dayBtn = document.getElementById("dayBtn");
 const endDayBtn = document.getElementById("endVoteBtn");
 
-// Modals
 const gameOverModal = document.getElementById("gameOverModal");
 const nextRoundBtn = document.getElementById("nextRoundBtn");
 const modalExitBtn = document.getElementById("modalExitBtn");
@@ -55,7 +53,6 @@ const deckStatus = document.getElementById("deckStatus");
 const actionPanel = document.getElementById("actionPanel");
 const votingPanel = document.getElementById("votingPanel");
 
-// Night Result
 const nightResultModal = document.getElementById("nightResultModal");
 const nrCardInner = document.getElementById("nrCardInner");
 const nrIcon = document.getElementById("nrIcon");
@@ -64,7 +61,6 @@ const nrDetail = document.getElementById("nrDetail");
 const nrTitle = document.getElementById("nrTitle");
 const nrCloseBtn = document.getElementById("nrCloseBtn");
 
-// Chat
 const mafiaChat = document.getElementById("mafiaChat");
 const chatHistory = document.getElementById("chatHistory");
 const chatInput = document.getElementById("chatInput");
@@ -133,6 +129,19 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
+// KICK LOGIC (Auto-Redirect)
+onValue(ref(db, "room/players"), (snap) => {
+    const players = snap.val();
+    const myId = localStorage.getItem("playerId");
+    const isHost = localStorage.getItem("isHost") === "true";
+
+    // If I have an ID, am not Host, and am NOT in the DB -> I was kicked
+    if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
+        localStorage.clear();
+        location.reload();
+    }
+});
+
 async function performSoftReset() {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
@@ -182,9 +191,8 @@ softResetBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS & EVENT DELEGATION (KEY FIX)
+// 3. HOST CONTROLS & EVENT DELEGATION
 // --------------------------------------------------
-// Use Delegation for robust buttons
 playersList.addEventListener('click', (e) => {
     const target = e.target;
     
@@ -201,16 +209,19 @@ playersList.addEventListener('click', (e) => {
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
         const pid = target.dataset.pid;
-        // Instantly assign civilian
         update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
         return;
     }
 
-    // CARD FLIP (Only if not clicking a button)
-    const card = target.closest('.playerCard');
-    if (card && !target.closest('button')) {
-        // Handle visual flip logic if needed, or open modal
-        // Currently handled by onclick in HTML generation, but could move here.
+    // VIEW ROLE BUTTON (New)
+    if (target.classList.contains('viewRoleBtn')) {
+        e.stopPropagation();
+        const role = target.dataset.role;
+        const name = target.dataset.name;
+        document.getElementById("modalRole").src = `images/${role}.png`;
+        document.getElementById("modalName").innerText = name;
+        document.getElementById("modalRoleText").innerText = `Role: ${role.toUpperCase()}`;
+        document.getElementById("roleModal").style.display = "flex";
     }
 });
 
@@ -261,7 +272,6 @@ nightBtn.addEventListener('click', () => {
     remove(ref(db, "room/pendingResults"));
 });
 
-// DAY TRANSITION & ANIMATION
 dayBtn.addEventListener('click', async () => {
     try {
         const nightSnap = await get(ref(db, "room/night"));
@@ -323,7 +333,7 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Bulletproof Vest";
         }
 
-        // TRIGGER MODAL (No Alert)
+        // TRIGGER MODAL
         if (finalNightDeathId) {
             nrTitle.innerText = "TRAGEDY!";
             nrIcon.innerText = "💀";
@@ -367,7 +377,6 @@ dayBtn.addEventListener('click', async () => {
     
     } catch (e) {
         console.error(e);
-        // Alert only on CRITICAL error
         alert("System Error: " + e.message); 
     }
 });
@@ -411,7 +420,7 @@ endDayBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 4. PLAYER ACTIONS & CHAT
+// 4. PLAYER ACTIONS
 // --------------------------------------------------
 sendChatBtn.addEventListener('click', async () => {
     const text = chatInput.value.trim();
@@ -588,33 +597,37 @@ onValue(ref(db, "room"), (snap) => {
             div.classList.add("playerCard");
             
             if(isHost) {
-                // FIXED KICK: GENERATE DATA ATTRIBUTES
+                // KICK BUTTON (Data Attributes for Delegation)
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
                 kickBtn.innerText = "X";
-                kickBtn.dataset.pid = pid; // Store ID for delegation
+                kickBtn.dataset.pid = pid;
                 kickBtn.dataset.name = p.name;
                 div.appendChild(kickBtn);
 
-                // FIXED LATE DEAL
+                // LATE DEAL BUTTON (Data Attributes)
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
                     lateDealBtn.innerText = "🃏 Deal Entry";
-                    lateDealBtn.dataset.pid = pid; // Store ID for delegation
+                    lateDealBtn.dataset.pid = pid;
                     div.appendChild(lateDealBtn);
                 }
             }
 
+            // VIEW ROLE BUTTON (Only if we can see role & it's dealt)
+            if (isDealt && canSeeRole && p.role) {
+                const viewBtn = document.createElement("button");
+                viewBtn.className = "viewRoleBtn";
+                viewBtn.innerText = "👁️";
+                viewBtn.dataset.role = p.role;
+                viewBtn.dataset.name = p.name;
+                div.appendChild(viewBtn);
+            }
+
             div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
-            div.onclick = () => {
-                if(isDealt && canSeeRole && p.role) {
-                    document.getElementById("modalRole").src = `images/${p.role}.png`;
-                    document.getElementById("modalName").innerText = p.name;
-                    document.getElementById("modalRoleText").innerText = `Role: ${p.role.toUpperCase()}`;
-                    document.getElementById("roleModal").style.display = "flex";
-                }
-            };
+            // Removed div.onclick to prevent accidental touches
+            
             playersList.appendChild(div);
 
             if (me && !amDead && me.role) { 
