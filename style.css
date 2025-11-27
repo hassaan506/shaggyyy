@@ -222,3 +222,59 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
     .rightPanel { order: -1; } 
     #mafiaChat { width: 200px; height: 220px; bottom: 70px; left: 10px; }
 }
+
+/* ---------------------------------------------
+    8. MODALS (FIXED SIZING)
+--------------------------------------------- */
+#roleModal, #gameOverModal, #nightResultModal { 
+    display: none; position: fixed; top: 0; left: 0; 
+    width: 100%; height: 100%; 
+    background: rgba(0,0,0,0.95); /* Darker background */
+    z-index: 2000; 
+    justify-content: center; align-items: center; 
+    backdrop-filter: blur(5px); 
+    padding: 20px; /* Safety padding */
+}
+
+.modalContent { 
+    background: #fff; padding: 20px; 
+    border-radius: 16px; text-align: center; 
+    width: 90%; max-width: 320px; /* Prevent huge width */
+    max-height: 90vh; /* Prevent overflowing screen height */
+    overflow-y: auto; /* Scroll if content is too tall */
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+}
+
+body.night .modalContent { background: #1a1a2a; color: #fff; border: 1px solid #3b5bdb; }
+
+/* FIX THE IMAGE SIZE */
+#modalRole {
+    width: 100%; 
+    max-width: 180px; /* Limit width */
+    height: auto; 
+    max-height: 250px; /* Limit height so buttons stay visible */
+    object-fit: contain;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: 1px solid #444;
+}
+
+/* Close Button Styling */
+.closeModal {
+    margin-top: 15px; 
+    padding: 10px 30px; 
+    background: #d32f2f; color: white; 
+    border: none; border-radius: 30px; 
+    font-weight: bold; font-size: 16px; 
+    cursor: pointer; width: 100%;
+}
+
+/* ... (Keep existing Chat CSS below this) ... */
+#mafiaChat { 
+    position: fixed; bottom: 20px; left: 20px; width: 280px; height: 320px; 
+    background: rgba(10, 10, 18, 0.95); border: 2px solid #d32f2f; 
+    border-radius: 12px; display: flex; flex-direction: column; 
+    z-index: 1500; backdrop-filter: blur(5px); 
+}
+/* ... (Rest of chat CSS stays same) ... */
