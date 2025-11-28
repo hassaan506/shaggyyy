@@ -22,7 +22,7 @@ try {
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
     deal: new Audio('sound/deal.mp3'),        
-    night: new Audio('sound/night.mp3'), // Changed to night.mp3
+    night: new Audio('sound/night.mp3'),
     day: new Audio('sound/rooster.mp3'),
     mafiaWin: new Audio('sound/win.mp3'),     
     civWin: new Audio('sound/victory.mp3'),   
@@ -595,9 +595,8 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // Phase Change Logic
+    // FIX: CLEAR PANELS ONLY ON PHASE CHANGE
     if (phase !== lastPhase) {
-        // Clear Voting Panels when Phase Changes
         document.getElementById("votingPanel").innerHTML = ""; 
         document.getElementById("actionPanel").innerHTML = ""; 
         
@@ -682,13 +681,15 @@ onValue(ref(db, "room"), (snap) => {
     document.getElementById("phaseText").innerText = phase;
     if(phase === "night") {
         document.body.className = "night";
-        actionTargets.innerHTML = "";
+        // actionTargets.innerHTML = ""; // REMOVED THE WIPE LINE
     } else if (phase === "day") {
         document.body.className = "day";
-        voteTargets.innerHTML = "";
+        // voteTargets.innerHTML = ""; // REMOVED THE WIPE LINE
     } else {
         document.body.className = "";
     }
+
+    // ... (rest of code is same as previous, just ensure no innerHTML wiping inside the main loop)
 
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
@@ -750,6 +751,9 @@ onValue(ref(db, "room"), (snap) => {
         const amDead = me && me.statusTags && me.statusTags.length > 0;
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
         const hasVotedDay = data.votes && data.votes[myId];
+
+        if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
+        else mafiaChat.classList.add("hidden");
 
         Object.entries(data.players).forEach(([pid, p]) => {
             if (data.host && p.name === data.host.name) return;
@@ -843,4 +847,104 @@ onValue(ref(db, "room"), (snap) => {
                 }
                 
                 if (phase === "day" && !isMe) {
-                    if (hasVotedDay
+                    if (hasVotedDay) {
+                        votingPanel.classList.remove("hidden");
+                        votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
+                    } else {
+                        if(votingPanel.innerHTML.includes("Vote Submitted")) votingPanel.innerHTML = `<h3>Day Vote</h3><p id="voteInstruction">Who to eliminate?</p><div id="voteTargets" class="targets"></div><button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>`;
+                        
+                        createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
+                        
+                        const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
+                        if(!skipExists) {
+                            const skipBtn = document.createElement("button");
+                            skipBtn.innerText = "😴 SKIP VOTE";
+                            skipBtn.dataset.pid = "SKIP";
+                            skipBtn.className = "skipBtn";
+                            skipBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                playSound('click');
+                                Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
+                                skipBtn.classList.add("selected");
+                                submitVoteBtn.disabled = false;
+                                submitVoteBtn.dataset.vote = "SKIP";
+                            });
+                            voteTargets.prepend(skipBtn);
+                        }
+                        votingPanel.classList.remove("hidden");
+                    }
+                }
+            } else if (amDead) {
+                actionPanel.classList.add("hidden");
+                votingPanel.classList.add("hidden");
+            }
+        });
+    }
+});
+
+function createBtn(container, name, pid, btn, datasetKey) {
+    const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
+    if(existing) return;
+    const b = document.createElement("button");
+    b.innerText = name;
+    b.dataset.pid = pid;
+    b.addEventListener('click', (e) => {
+        e.preventDefault(); 
+        playSound('click');
+        Array.from(container.children).forEach(c => c.classList.remove("selected"));
+        b.classList.add("selected");
+        btn.disabled = false;
+        btn.dataset[datasetKey] = pid;
+    });
+    container.appendChild(b);
+}
+
+async function pushTag(pid, tag) {
+    const refP = ref(db, `room/players/${pid}`);
+    const snap = await get(refP);
+    if (!snap.exists()) return;
+    let currentTags = snap.val().statusTags || "";
+    if (!currentTags.includes(tag)) {
+        let newTags = currentTags ? `${currentTags} & ${tag}` : tag;
+        await update(refP, { statusTags: newTags });
+    }
+}
+
+async function checkWinCondition() {
+    const snap = await get(ref(db, "room/players"));
+    if (!snap.exists()) return;
+    const p = Object.values(snap.val());
+    
+    const activePlayers = p.filter(x => !x.statusTags);
+    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
+    const townCount = activePlayers.filter(x => 
+        x.role !== "mafia" && 
+        x.role !== "godfather" && 
+        x.role !== "jester"
+    ).length;
+
+    if (mafiaCount === 0 && activePlayers.length > 0) {
+        await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
+        await set(ref(db, "room/gamePhase"), "GAME OVER");
+        const scoreSnap = await get(ref(db, "room/scoreboard"));
+        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
+        scores.town++;
+        await update(ref(db, "room/scoreboard"), scores);
+    } 
+    else if (mafiaCount >= townCount && activePlayers.length > 0) {
+        await set(ref(db, "room/winMessage"), "MAFIA WINS!");
+        await set(ref(db, "room/gamePhase"), "GAME OVER");
+        const scoreSnap = await get(ref(db, "room/scoreboard"));
+        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
+        scores.mafia++;
+        await update(ref(db, "room/scoreboard"), scores);
+    }
+}
+
+hardResetBtn.addEventListener('click', async () => {
+    if (confirm("HARD RESET? This kicks everyone.")) {
+        await remove(ref(db, "room"));
+        localStorage.clear();
+        location.reload();
+    }
+});
