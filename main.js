@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
+// --- CONFIGURATION ---
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -17,24 +18,36 @@ try {
     db = getDatabase(app);
 } catch (e) { console.error(e); }
 
-// --- SOUND SYSTEM (HTML TAG METHOD) ---
-function playSound(id) {
-    const el = document.getElementById("snd_" + id);
-    if(el) {
-        el.currentTime = 0;
-        el.play().catch(() => console.log("Audio Blocked"));
-    }
-}
+// --- SOUND ENGINE ---
+const sounds = {
+    shuffle: new Audio('sound/shuffle.mp3'),
+    deal: new Audio('sound/deal.mp3'),       
+    night: new Audio('sound/wolf.mp3'),
+    day: new Audio('sound/rooster.mp3'),
+    mafiaWin: new Audio('sound/win.mp3'),    
+    civWin: new Audio('sound/victory.mp3'),  
+    shotgun: new Audio('sound/shotgun.mp3')  
+};
 
-// UNLOCK AUDIO ON FIRST CLICK
+// Global Unlocker
 document.addEventListener('click', () => {
-    ["shuffle","deal","wolf","rooster","win","victory","shotgun"].forEach(id => {
-        const el = document.getElementById("snd_" + id);
-        if(el) { el.muted = true; el.play().catch(()=>{}); el.pause(); el.currentTime=0; el.muted=false; }
+    Object.values(sounds).forEach(s => {
+        if(s.readyState === 0) s.load();
     });
 }, { once: true });
 
-// --- DOM ---
+function playSound(name) {
+    try {
+        if(sounds[name]) {
+            sounds[name].currentTime = 0;
+            sounds[name].volume = 0.7; 
+            let p = sounds[name].play();
+            if (p !== undefined) p.catch(e => {});
+        }
+    } catch(e) { console.log("Sound error", e); }
+}
+
+// --- DOM ELEMENTS ---
 const screenJoin = document.getElementById("screenJoin");
 const screenLobby = document.getElementById("screenLobby");
 const screenGame = document.getElementById("screenGame");
@@ -45,6 +58,7 @@ const joinStatus = document.getElementById("joinStatus");
 
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
+const hostFeed = document.getElementById("hostFeed");
 const liveVoteList = document.getElementById("liveVoteList");
 
 const scoreboard = document.getElementById("scoreboard");
@@ -96,6 +110,7 @@ const voteTargets = document.getElementById("voteTargets");
 let allPlayersCache = {}; 
 let myCurrentRole = null;
 let lastPhase = "Waiting";
+let isTransitioning = false; // Prevents auto-kick when switching roles
 
 // --- UTILS ---
 function shuffleArray(array) {
@@ -128,8 +143,9 @@ if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
 }
 
 firstJoinBtn.addEventListener('click', async () => {
+    playSound('click'); 
     const name = playerNameInput.value.trim();
-    if (!name) return;
+    if (!name) { joinStatus.innerText = "Please enter a name."; return; }
     firstJoinBtn.disabled = true;
     firstJoinBtn.innerText = "Joining...";
     
@@ -141,56 +157,83 @@ firstJoinBtn.addEventListener('click', async () => {
         await set(refP, { name, role: null, statusTags: "" });
         screenJoin.classList.add("hidden");
     } catch (e) {
+        joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
     }
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST
+// 2. LOBBY & HOST (FIXED RACE CONDITION)
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
+    playSound('click');
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
     if(!myName) return location.reload();
 
+    claimHostBtn.disabled = true;
+    claimHostBtn.innerText = "Claiming...";
+    
+    // 1. Activate Safety Flag
+    isTransitioning = true; 
+
+    // 2. Update Local State
+    localStorage.setItem("isHost", "true");
+    localStorage.setItem("playerId", "HOST");
+
+    // 3. Force UI Update Immediately (Don't wait for DB)
+    hostControls.classList.remove("hidden");
+    screenLobby.classList.add("hidden");
+    screenGame.classList.remove("hidden");
+
+    // 4. Update DB
     await set(ref(db, "room/host"), { name: myName });
+    
+    // 5. Remove Old Player Entry
     if (myTempId && myTempId !== "HOST") {
         try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
+    
     await set(ref(db, "room/gamePhase"), "Waiting");
-    localStorage.setItem("isHost", "true");
-    localStorage.setItem("playerId", "HOST");
-    location.reload();
+    
+    // 6. Release Safety Flag after a delay
+    setTimeout(() => { isTransitioning = false; }, 2000);
 });
 
-// AUTO-KICK
+// AUTO-KICK PROTECTION (With Safety Flag)
 onValue(ref(db, "room/players"), (snap) => {
+    if (isTransitioning) return; // Don't kick if switching
+
     const players = snap.val();
     const myId = localStorage.getItem("playerId");
     const isHost = localStorage.getItem("isHost") === "true";
+
     if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
         localStorage.clear();
         location.reload();
     }
 });
 
-// SOFT RESET
+// Soft Reset
 async function performSoftReset() {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
     const updates = {};
+    
     Object.keys(players).forEach(pid => {
         updates[`room/players/${pid}/role`] = null;
         updates[`room/players/${pid}/statusTags`] = "";
         updates[`room/players/${pid}/vestUsed`] = false;
         updates[`room/players/${pid}/vestActive`] = false;
     });
+
     const myName = localStorage.getItem("name");
     if (myName) {
         const newRef = push(ref(db, "room/players"));
         updates[`room/players/${newRef.key}`] = { name: myName, role: null, statusTags: "" };
         localStorage.setItem("playerId", newRef.key);
     }
+
     updates["room/night"] = null;
     updates["room/votes"] = null;
     updates["room/pendingResults"] = null;
@@ -201,6 +244,7 @@ async function performSoftReset() {
     updates["room/hasShuffled"] = false;
     updates["room/gamePhase"] = "Lobby";
     updates["room/host"] = null;
+
     await update(ref(db), updates);
     localStorage.setItem("isHost", "false");
 }
@@ -220,7 +264,7 @@ softResetBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS & DELEGATION
+// 3. HOST CONTROLS
 // --------------------------------------------------
 playersList.addEventListener('click', (e) => {
     const target = e.target;
@@ -235,6 +279,7 @@ playersList.addEventListener('click', (e) => {
     }
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
+        playSound('click');
         const role = target.dataset.role;
         document.getElementById("modalRole").src = `images/${role}.png`;
         document.getElementById("modalName").innerText = target.dataset.name;
@@ -250,6 +295,7 @@ window.onclick = function(event) {
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 
 shuffleBtn.addEventListener('click', async () => {
+    playSound('shuffle');
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
     setTimeout(async () => {
@@ -259,6 +305,7 @@ shuffleBtn.addEventListener('click', async () => {
 });
 
 dealBtn.addEventListener('click', async () => {
+    playSound('shuffle'); // Using Shuffle sound as Deal sound replacement
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
@@ -297,7 +344,6 @@ nightBtn.addEventListener('click', () => {
 });
 
 dayBtn.addEventListener('click', async () => {
-    // Replaces Alert with Report Modal
     try {
         const nightSnap = await get(ref(db, "room/night"));
         const night = nightSnap.val() || {};
@@ -364,7 +410,6 @@ dayBtn.addEventListener('click', async () => {
         else if (vestSaved) reportMsg = `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
         else reportMsg = `🛡️ No one died tonight.`;
 
-        // SHOW REPORT MODAL (Wait for Host to click Proceed)
         showReport("🌙 NIGHT RESULTS (HIDDEN)", reportMsg, async () => {
             const resetVests = {};
             Object.keys(players).forEach(pid => { resetVests[`room/players/${pid}/vestActive`] = false; });
@@ -383,6 +428,7 @@ nrCloseBtn.addEventListener('click', () => {
 });
 
 endDayBtn.addEventListener('click', async () => {
+    playSound('click');
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
@@ -405,6 +451,7 @@ endDayBtn.addEventListener('click', async () => {
         let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.jester = (scores.jester || 0) + 1;
         await update(ref(db, "room/scoreboard"), scores);
+        playSound('mafiaWin'); 
         await set(ref(db, "room/winMessage"), "🤡 JESTER WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         return; 
@@ -455,6 +502,7 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 submitActionBtn.addEventListener('click', async () => {
+    playSound('click');
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
     const target = submitActionBtn.dataset.target;
@@ -475,6 +523,7 @@ submitActionBtn.addEventListener('click', async () => {
 });
 
 submitVoteBtn.addEventListener('click', async () => {
+    playSound('click');
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
@@ -500,7 +549,6 @@ onValue(ref(db, "room"), (snap) => {
         return;
     }
 
-    // SCOREBOARD & JESTER TOGGLE
     const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
     scoreTown.innerText = scores.town;
     scoreMafia.innerText = scores.mafia;
@@ -516,7 +564,7 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
-    // SOUNDS
+    // SOUNDS & THEMES
     if (phase !== lastPhase) {
         if (phase === "night") playSound('night');
         if (phase === "day") {
@@ -570,6 +618,7 @@ onValue(ref(db, "room"), (snap) => {
         document.body.className = "";
     }
 
+    // NAVIGATION
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
@@ -577,7 +626,9 @@ onValue(ref(db, "room"), (snap) => {
         return;
     } else {
         screenLobby.classList.add("hidden");
-        if (isHost || (myId && myId !== "HOST")) screenGame.classList.remove("hidden");
+        if (isHost || (myId && myId !== "HOST")) {
+            screenGame.classList.remove("hidden");
+        }
     }
 
     if (phase === "GAME OVER") {
@@ -707,6 +758,7 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
+                                        playSound('click');
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
                                     }
                                 };
@@ -739,6 +791,7 @@ onValue(ref(db, "room"), (snap) => {
                             skipBtn.className = "skipBtn";
                             skipBtn.addEventListener('click', (e) => {
                                 e.preventDefault();
+                                playSound('click');
                                 Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
                                 skipBtn.classList.add("selected");
                                 submitVoteBtn.disabled = false;
@@ -765,6 +818,7 @@ function createBtn(container, name, pid, btn, datasetKey) {
     b.dataset.pid = pid;
     b.addEventListener('click', (e) => {
         e.preventDefault(); 
+        playSound('click');
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
         b.classList.add("selected");
         btn.disabled = false;
