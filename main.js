@@ -22,7 +22,7 @@ try {
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
     deal: new Audio('sound/deal.mp3'),        
-    night: new Audio('sound/wolf.mp3'),
+    night: new Audio('sound/night.mp3'), // Changed to night.mp3
     day: new Audio('sound/rooster.mp3'),
     mafiaWin: new Audio('sound/win.mp3'),     
     civWin: new Audio('sound/victory.mp3'),   
@@ -69,14 +69,12 @@ function shuffleArray(array) {
     return array;
 }
 
-// FIX: Report Button "Null Object" Crash Fixed
 function showReport(title, msg, callback) {
     reportTitle.innerText = title;
     reportText.innerText = msg;
     reportModal.classList.remove("hidden");
     reportModal.classList.add("flex-visible");
     
-    // Reset the onclick handler safely without destroying the node
     reportBtn.onclick = () => {
         reportModal.classList.remove("flex-visible");
         reportModal.classList.add("hidden");
@@ -96,6 +94,7 @@ const joinStatus = document.getElementById("joinStatus");
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
 const hostFeed = document.getElementById("hostFeed");
+const liveVoteList = document.getElementById("liveVoteList");
 
 const scoreboard = document.getElementById("scoreboard");
 const scoreTown = document.getElementById("scoreTown");
@@ -136,6 +135,7 @@ const closeRoleBtn = document.getElementById("closeRoleBtn");
 const roundCounter = document.getElementById("roundCounter");
 
 const mafiaChat = document.getElementById("mafiaChat");
+const mafiaLiveFeed = document.getElementById("mafiaLiveFeed");
 const chatHistory = document.getElementById("chatHistory");
 const chatInput = document.getElementById("chatInput");
 const sendChatBtn = document.getElementById("sendChatBtn");
@@ -252,7 +252,7 @@ async function performSoftReset() {
     updates["room/isShuffling"] = false;
     updates["room/hasShuffled"] = false;
     updates["room/gamePhase"] = "Lobby";
-    updates["room/roundCount"] = 0; // Reset Rounds
+    updates["room/roundCount"] = 0; 
     updates["room/host"] = null;
     await update(ref(db), updates);
     localStorage.setItem("isHost", "false");
@@ -320,9 +320,7 @@ shuffleBtn.addEventListener('click', async () => {
     }, 4500);
 });
 
-// FIX: Sound Removed
 dealBtn.addEventListener('click', async () => {
-    // playSound('shuffle'); // REMOVED
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
@@ -354,7 +352,7 @@ dealBtn.addEventListener('click', async () => {
     });
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
-    await set(ref(db, "room/roundCount"), 0); // Start Rounds
+    await set(ref(db, "room/roundCount"), 0);
 });
 
 nightBtn.addEventListener('click', async () => {
@@ -362,11 +360,8 @@ nightBtn.addEventListener('click', async () => {
     await remove(ref(db, "room/night")); 
     await remove(ref(db, "room/pendingResults"));
     
-    // FIX: Increment Round on Night Start (Night 1, Night 2...)
     const rSnap = await get(ref(db, "room/roundCount"));
     let r = rSnap.val() || 0;
-    // We don't increment here strictly, usually Day 1 -> Night 1. 
-    // We can just update UI.
 });
 
 dayBtn.addEventListener('click', async () => {
@@ -381,7 +376,6 @@ dayBtn.addEventListener('click', async () => {
             return;
         }
 
-        // FIX: Round Increment (Day 1, Day 2...)
         const rSnap = await get(ref(db, "room/roundCount"));
         let r = rSnap.val() || 0;
         await set(ref(db, "room/roundCount"), r + 1);
@@ -406,7 +400,6 @@ dayBtn.addEventListener('click', async () => {
             else if (count === maxVotes) { potentialVictims.push(pid); }
         }
         
-        // FIX: Ensure victim is selected if ANY votes exist
         let finalNightDeathId = null;
         if (potentialVictims.length > 0) {
              finalNightDeathId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
@@ -604,7 +597,7 @@ onValue(ref(db, "room"), (snap) => {
     
     // Phase Change Logic
     if (phase !== lastPhase) {
-        // FIX: Clear Voting Panels when Phase Changes so players can vote again
+        // Clear Voting Panels when Phase Changes
         document.getElementById("votingPanel").innerHTML = ""; 
         document.getElementById("actionPanel").innerHTML = ""; 
         
@@ -652,6 +645,38 @@ onValue(ref(db, "room"), (snap) => {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
         document.getElementById("hostStatus").style.color = "#28a745";
+    }
+
+    // UPDATE HOST FEED & MAFIA FEED
+    if(isHost) {
+        const list = document.getElementById("liveVoteList");
+        if(list) {
+            list.innerHTML = "";
+            let voteSource = (phase === "night") ? (data.night ? data.night.mafiaVotes : {}) : (data.votes || {});
+            Object.entries(voteSource).forEach(([pid, target]) => {
+                const li = document.createElement("li");
+                li.innerHTML = `<b>${getName(pid)}</b> ➔ ${getName(target)}`;
+                list.appendChild(li);
+            });
+        }
+    }
+    
+    // UPDATE MAFIA FEED
+    const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
+    if(phase === "night" && amIMafia) {
+        mafiaChat.classList.remove("hidden");
+        const liveFeed = document.getElementById("mafiaLiveFeed");
+        if (liveFeed) {
+            const votes = (data.night && data.night.mafiaVotes) ? data.night.mafiaVotes : {};
+            const voteList = Object.entries(votes).map(([pid, target]) => {
+                const voterName = getName(pid);
+                const targetName = getName(target);
+                return `🔫 <b>${voterName}</b> targets <b>${targetName}</b>`;
+            }).join("<br>");
+            liveFeed.innerHTML = voteList || "No targets selected yet...";
+        }
+    } else {
+        mafiaChat.classList.add("hidden");
     }
 
     document.getElementById("phaseText").innerText = phase;
@@ -725,9 +750,6 @@ onValue(ref(db, "room"), (snap) => {
         const amDead = me && me.statusTags && me.statusTags.length > 0;
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
         const hasVotedDay = data.votes && data.votes[myId];
-
-        if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
-        else mafiaChat.classList.add("hidden");
 
         Object.entries(data.players).forEach(([pid, p]) => {
             if (data.host && p.name === data.host.name) return;
@@ -821,104 +843,4 @@ onValue(ref(db, "room"), (snap) => {
                 }
                 
                 if (phase === "day" && !isMe) {
-                    if (hasVotedDay) {
-                        votingPanel.classList.remove("hidden");
-                        votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
-                    } else {
-                        if(votingPanel.innerHTML.includes("Vote Submitted")) votingPanel.innerHTML = `<h3>Day Vote</h3><p id="voteInstruction">Who to eliminate?</p><div id="voteTargets" class="targets"></div><button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>`;
-                        
-                        createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
-                        
-                        const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
-                        if(!skipExists) {
-                            const skipBtn = document.createElement("button");
-                            skipBtn.innerText = "😴 SKIP VOTE";
-                            skipBtn.dataset.pid = "SKIP";
-                            skipBtn.className = "skipBtn";
-                            skipBtn.addEventListener('click', (e) => {
-                                e.preventDefault();
-                                playSound('click');
-                                Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
-                                skipBtn.classList.add("selected");
-                                submitVoteBtn.disabled = false;
-                                submitVoteBtn.dataset.vote = "SKIP";
-                            });
-                            voteTargets.prepend(skipBtn);
-                        }
-                        votingPanel.classList.remove("hidden");
-                    }
-                }
-            } else if (amDead) {
-                actionPanel.classList.add("hidden");
-                votingPanel.classList.add("hidden");
-            }
-        });
-    }
-});
-
-function createBtn(container, name, pid, btn, datasetKey) {
-    const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
-    if(existing) return;
-    const b = document.createElement("button");
-    b.innerText = name;
-    b.dataset.pid = pid;
-    b.addEventListener('click', (e) => {
-        e.preventDefault(); 
-        playSound('click');
-        Array.from(container.children).forEach(c => c.classList.remove("selected"));
-        b.classList.add("selected");
-        btn.disabled = false;
-        btn.dataset[datasetKey] = pid;
-    });
-    container.appendChild(b);
-}
-
-async function pushTag(pid, tag) {
-    const refP = ref(db, `room/players/${pid}`);
-    const snap = await get(refP);
-    if (!snap.exists()) return;
-    let currentTags = snap.val().statusTags || "";
-    if (!currentTags.includes(tag)) {
-        let newTags = currentTags ? `${currentTags} & ${tag}` : tag;
-        await update(refP, { statusTags: newTags });
-    }
-}
-
-async function checkWinCondition() {
-    const snap = await get(ref(db, "room/players"));
-    if (!snap.exists()) return;
-    const p = Object.values(snap.val());
-    
-    const activePlayers = p.filter(x => !x.statusTags);
-    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    const townCount = activePlayers.filter(x => 
-        x.role !== "mafia" && 
-        x.role !== "godfather" && 
-        x.role !== "jester"
-    ).length;
-
-    if (mafiaCount === 0 && activePlayers.length > 0) {
-        await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
-        await set(ref(db, "room/gamePhase"), "GAME OVER");
-        const scoreSnap = await get(ref(db, "room/scoreboard"));
-        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
-        scores.town++;
-        await update(ref(db, "room/scoreboard"), scores);
-    } 
-    else if (mafiaCount >= townCount && activePlayers.length > 0) {
-        await set(ref(db, "room/winMessage"), "MAFIA WINS!");
-        await set(ref(db, "room/gamePhase"), "GAME OVER");
-        const scoreSnap = await get(ref(db, "room/scoreboard"));
-        let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
-        scores.mafia++;
-        await update(ref(db, "room/scoreboard"), scores);
-    }
-}
-
-hardResetBtn.addEventListener('click', async () => {
-    if (confirm("HARD RESET? This kicks everyone.")) {
-        await remove(ref(db, "room"));
-        localStorage.clear();
-        location.reload();
-    }
-});
+                    if (hasVotedDay
