@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>Mafia Wars</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=25.0">
+    <link rel="stylesheet" href="style.css?v=27.0">
 </head>
 <body class="">
 
@@ -69,16 +69,20 @@
         <div id="tableArea" class="tableArea">
             <div id="centralDeck" class="deckWrapper">
                 <div class="cardDeck">
-                    <img src="images/back.png" class="deckImg">
-                    <img src="images/back.png" class="deckImg layer1">
-                    <img src="images/back.png" class="deckImg layer2">
+                    <img src="images/back.png" class="deckImg" onerror="this.src='https://via.placeholder.com/150x200?text=Card'">
+                    <img src="images/back.png" class="deckImg layer1" onerror="this.src='https://via.placeholder.com/150x200?text=Card'">
+                    <img src="images/back.png" class="deckImg layer2" onerror="this.src='https://via.placeholder.com/150x200?text=Card'">
                 </div>
                 <p id="deckStatus">Tap to Shuffle</p>
             </div>
         </div>
 
         <div class="gameContainer">
-            <div id="playersList" class="players"></div>
+            <!-- This is the new "Table" area -->
+            <div class="tableSurface">
+                <div id="playersList" class="players"></div>
+            </div>
+
             <div class="rightPanel">
                 <div id="phaseBanner" class="phaseBanner">
                     <span id="roundCounter" style="color: #ffd700; margin-right: 10px; font-weight:bold;">Day 1</span>
@@ -115,7 +119,7 @@
             <h2 id="nrTitle">The Sun Rises...</h2>
             <div class="flip-card-container">
                 <div class="flip-card-inner" id="nrCardInner">
-                    <div class="flip-card-front"><img src="images/back.png"></div>
+                    <div class="flip-card-front"><img src="images/back.png" onerror="this.src='https://via.placeholder.com/150x200?text=Card'"></div>
                     <div class="flip-card-back">
                         <div id="nrIcon" class="result-icon">💀</div>
                         <h3 id="nrName">Player Name</h3>
@@ -147,7 +151,7 @@
     <div id="roleModal" class="hidden">
         <div class="modalContent">
             <h2 id="modalName">Player</h2>
-            <img id="modalRole" src="" alt="Role" />
+            <img id="modalRole" src="" alt="Role" onerror="this.src='https://via.placeholder.com/150x200?text=Role'" />
             <p id="modalRoleText"></p>
             <button id="closeRoleBtn" class="closeModal" style="margin-top:10px; width:100%; padding:10px; background:#333; color:#fff; border:none; border-radius:5px; cursor:pointer;">Close</button>
         </div>
@@ -163,6 +167,6 @@
         <audio id="snd_shotgun" src="sound/shotgun.mp3" preload="auto"></audio>
     </div>
 
-    <script type="module" src="main.js?v=25.0"></script>
+    <script type="module" src="main.js?v=27.0"></script>
 </body>
 </html>
