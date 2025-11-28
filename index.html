@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>Mafia Wars</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=18.0">
+    <link rel="stylesheet" href="style.css?v=20.0">
 </head>
 <body class="">
 
@@ -80,7 +80,10 @@
         <div class="gameContainer">
             <div id="playersList" class="players"></div>
             <div class="rightPanel">
-                <div id="phaseBanner" class="phaseBanner">Phase: <span id="phaseText">Waiting</span></div>
+                <div id="phaseBanner" class="phaseBanner">
+                    <span id="roundCounter" style="color: #ffd700; margin-right: 10px;">Day 1</span>
+                    Phase: <span id="phaseText">Waiting</span>
+                </div>
                 <div id="actionPanel" class="panel hidden">
                     <h3>Night Action</h3>
                     <div id="actionTargets" class="targets"></div>
@@ -143,7 +146,7 @@
             <h2 id="modalName">Player</h2>
             <img id="modalRole" src="" alt="Role" />
             <p id="modalRoleText"></p>
-            <button id="closeRoleBtn" class="closeModal" style="margin-top:10px; width:100%; padding:10px; background:#333; color:fff;">Close</button>
+            <button id="closeRoleBtn" class="closeModal" style="margin-top:10px; width:100%; padding:10px; background:#333; color:#fff; border:none; border-radius:5px; cursor:pointer;">Close</button>
         </div>
     </div>
 
@@ -157,6 +160,6 @@
         <audio id="snd_shotgun" src="sound/shotgun.mp3" preload="auto"></audio>
     </div>
 
-    <script type="module" src="main.js?v=18.0"></script>
+    <script type="module" src="main.js?v=20.0"></script>
 </body>
 </html>
