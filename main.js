@@ -19,15 +19,23 @@ try {
 } catch (e) { console.error(e); }
 
 // --- SOUND ENGINE ---
+// STRICT RULES: No generic clicks.
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
-    // deal: new Audio('sound/deal.mp3'), // DISABLED PER REQUEST
+    deal: new Audio('sound/deal.mp3'),          
     night: new Audio('sound/night.mp3'),
     day: new Audio('sound/rooster.mp3'),
     mafiaWin: new Audio('sound/win.mp3'),       
     civWin: new Audio('sound/victory.mp3'),     
     shotgun: new Audio('sound/shotgun.mp3')
 };
+
+// Global Unlocker for Mobile (Silent)
+document.addEventListener('click', () => {
+    Object.values(sounds).forEach(s => {
+        if(s.readyState === 0) s.load();
+    });
+}, { once: true });
 
 function playSound(name) {
     try {
@@ -38,7 +46,7 @@ function playSound(name) {
             let p = sounds[name].play();
             if (p !== undefined) p.catch(e => { /* Ignore auto-play errors */ });
         }
-    } catch(e) { console.log("Sound error", e); }
+    } catch(e) { /* Ignore missing sounds */ }
 }
 
 // --- UTILS ---
@@ -68,7 +76,7 @@ function createBtn(parent, text, pid, mainBtn, dataAttr) {
      btn.dataset.pid = pid;
      btn.addEventListener('click', (e) => {
          e.preventDefault();
-         // SILENT CLICK - No Sound Here
+         // NO SOUND HERE.
          
          // Deselect all siblings
          Array.from(parent.children).forEach(c => c.classList.remove("selected"));
@@ -163,7 +171,8 @@ let myCurrentRole = null;
 let lastPhase = "Waiting";
 let isTransitioning = false; 
 let hasShuffledLocal = false;
-let isFirstLoad = true; // FIX FOR SOUNDS ON ENTRY
+let hasDealtLocal = false;
+let isFirstLoad = true; 
 
 // --- BUTTON LISTENERS ---
 
@@ -173,7 +182,7 @@ claimHostBtn.addEventListener('click', async () => {
     if(!myName || !pid) return alert("Please join with a name first.");
     
     if(confirm("Claim Host status? This controls the game flow.")) {
-        // SILENT CLICK
+        // No sound here, just reload logic
         await set(ref(db, "room/host"), { name: myName, id: pid });
         localStorage.setItem("isHost", "true");
         location.reload(); 
@@ -201,7 +210,7 @@ nextRoundBtn.addEventListener('click', async () => {
 });
 
 shuffleBtn.addEventListener('click', async () => {
-    playSound('shuffle');
+    // Only host clicks this, sound triggers via DB for everyone
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
     setTimeout(async () => {
@@ -236,6 +245,7 @@ dealBtn.addEventListener('click', async () => {
     playersArr.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
     });
+    // This DB change triggers the Deal sound in the main loop
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
     await set(ref(db, "room/roundCount"), 0);
@@ -245,7 +255,7 @@ nightBtn.addEventListener('click', async () => {
     await set(ref(db, "room/gamePhase"), "night");
     await remove(ref(db, "room/night")); 
     await remove(ref(db, "room/pendingResults"));
-    await remove(ref(db, "room/publicReport")); // Clear old news
+    await remove(ref(db, "room/publicReport")); 
 });
 
 dayBtn.addEventListener('click', async () => {
@@ -352,9 +362,6 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 async function performSoftReset() {
-    // FIX: Clear Host immediately so UI updates
-    await remove(ref(db, "room/host"));
-
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
     const updates = {};
@@ -365,11 +372,8 @@ async function performSoftReset() {
         updates[`room/players/${pid}/vestActive`] = false;
     });
     
-    // Create new entries for existing players
-    // This part is tricky. In soft reset, we usually keep players but clear roles.
-    // If you want to keep players:
-    // Do nothing else.
-    
+    // FIX: ATOMIC RESET OF HOST
+    updates["room/host"] = null;
     updates["room/night"] = null;
     updates["room/votes"] = null;
     updates["room/pendingResults"] = null;
@@ -382,6 +386,7 @@ async function performSoftReset() {
     updates["room/roundCount"] = 0; 
     
     await update(ref(db), updates);
+    // Explicitly reset local state
     localStorage.setItem("isHost", "false");
 }
 
@@ -426,8 +431,8 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
 
     // --- FIX: Reset Logic & Host Claim ---
+    // If no host exists in DB, force everyone's local logic to 'Lobby' mode
     if (!data || !data.host) {
-        // Force local client to forget they were host
         if (localStorage.getItem("isHost") === "true") {
              localStorage.setItem("isHost", "false");
         }
@@ -435,7 +440,7 @@ onValue(ref(db, "room"), (snap) => {
         if (myId) {
              screenJoin.classList.add("hidden"); 
              screenGame.classList.add("hidden"); 
-             screenLobby.classList.remove("hidden");
+             screenLobby.classList.remove("hidden"); // Host button is here
              gameOverModal.classList.add("hidden");
         }
         return;
@@ -467,11 +472,13 @@ onValue(ref(db, "room"), (snap) => {
     const isHost = localStorage.getItem("isHost") === "true";
     const phase = data.gamePhase || "Waiting";
      
-    // --- FIX: First Load Silence ---
+    // --- SILENCE ON ENTRY ---
     if (isFirstLoad) {
         lastPhase = phase;
+        // Check deck state to prevent immediate deal sound
+        if(data.deckDealt) hasDealtLocal = true;
+        if(data.hasShuffled) hasShuffledLocal = true;
         isFirstLoad = false;
-        // Do not return here, let the UI render!
     }
 
     // --- RESET UI FOR NEW PHASE ---
@@ -487,9 +494,21 @@ onValue(ref(db, "room"), (snap) => {
             playSound('day');
             if(roundCounter) roundCounter.innerText = `Day ${data.roundCount || 1}`;
             const pending = data.pendingResults || {};
-            // Result Modal Logic
+            
+            // --- STRICT SHOTGUN LOGIC ---
             if (pending.nightDeathId) {
-                 if (pending.reason && (pending.reason.includes("Mafia") || pending.reason.includes("Revenge"))) playSound('shotgun');
+                 const me = allPlayersCache[myId];
+                 const myRole = me ? me.role : "";
+                 const amIMafia = (myRole === "mafia" || myRole === "godfather");
+                 const amIVictim = (myId === pending.nightDeathId);
+                 
+                 // Check: Mafia Kill?
+                 if (pending.reason && pending.reason.includes("Mafia")) {
+                     if (amIMafia || amIVictim) playSound('shotgun');
+                 } 
+                 // If killed by Grandma revenge, maybe everyone hears it? Or same logic.
+                 // For now, sticking to your request: Only Mafia/Victim hear successful mafia kill.
+                 
                  nrTitle.innerText = "TRAGEDY!";
                  nrIcon.innerText = "💀";
                  nrName.innerText = getName(pending.nightDeathId);
@@ -515,15 +534,19 @@ onValue(ref(db, "room"), (snap) => {
         lastPhase = phase;
     }
 
-    // Shuffle Sound
+    // Shuffle Sound (Everyone hears)
     if (data.isShuffling && !hasShuffledLocal) {
         playSound('shuffle');
         hasShuffledLocal = true;
     }
     if (!data.isShuffling) hasShuffledLocal = false;
     
-    // --- FIX: NO CLICK SOUNDS HERE ---
-    // (Removed the block that played click on deal)
+    // Deal Sound (Everyone hears)
+    if (data.deckDealt && !hasDealtLocal) {
+        playSound('deal'); 
+        hasDealtLocal = true;
+    }
+    if (!data.deckDealt) hasDealtLocal = false;
 
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
@@ -576,9 +599,8 @@ onValue(ref(db, "room"), (snap) => {
     }
 
     if (phase === "GAME OVER") {
-        // Only play sound once per game over event
-        // (Simplified for now, might repeat if page reloads, but better than silent)
-        
+        if(data.winMessage.includes("MAFIA") || data.winMessage.includes("JESTER")) playSound('mafiaWin');
+        else playSound('civWin');
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
         if (isHost) {
@@ -679,7 +701,7 @@ onValue(ref(db, "room"), (snap) => {
                           createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
                     }
                      
-                    // Vest Logic (Only for self, once)
+                    // Vest Logic
                     if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
                          if(!document.getElementById("vestBtn")) {
                                 const vestBtn = document.createElement("button");
@@ -688,7 +710,7 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
-                                        // SILENT CLICK
+                                        // NO SOUND
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
                                     }
                                 };
@@ -710,7 +732,7 @@ onValue(ref(db, "room"), (snap) => {
                         skipBtn.className = "skipBtn";
                         skipBtn.addEventListener('click', (e) => {
                             e.preventDefault();
-                            // SILENT CLICK
+                            // NO SOUND
                             Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
                             skipBtn.classList.add("selected");
                             submitVoteBtn.disabled = false;
@@ -726,7 +748,6 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
      
-    // Highlight previously selected
     const currentVote = (phase === "day") ? (data.votes?.[myId]) : (data.night?.mafiaVotes?.[myId]);
     const panel = (phase === "day") ? voteTargets : actionTargets;
     if (panel && currentVote) {
@@ -749,7 +770,7 @@ playersList.addEventListener('click', (e) => {
     }
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
-        // SILENT CLICK
+        // NO SOUND
         update(ref(db, `room/players/${target.dataset.pid}`), { role: "civilian", statusTags: "" });
     }
     if (target.classList.contains('viewRoleBtn')) {
@@ -780,9 +801,8 @@ nrCloseBtn.addEventListener('click', () => {
     nightResultModal.classList.add("hidden");
 });
 
-// --- FIX: REVEAL RESULTS LOGIC ---
 endDayBtn.addEventListener('click', async () => {
-    // SILENT CLICK
+    // NO SOUND
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
@@ -823,7 +843,6 @@ endDayBtn.addEventListener('click', async () => {
         report += `⚖️ Day: No majority/votes.\n`;
     }
      
-    // FIX: Clear votes for next day & update report
     await remove(ref(db, "room/votes"));
     await set(ref(db, "room/publicReport"), report);
     await checkWinCondition();
@@ -854,7 +873,7 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 submitActionBtn.addEventListener('click', async () => {
-    // SILENT CLICK
+    // NO SOUND
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
     const target = submitActionBtn.dataset.target;
@@ -875,7 +894,7 @@ submitActionBtn.addEventListener('click', async () => {
 });
 
 submitVoteBtn.addEventListener('click', async () => {
-    // SILENT CLICK
+    // NO SOUND
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
