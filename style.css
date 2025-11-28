@@ -1,5 +1,5 @@
 /* ---------------------------------------------
-    STYLE.CSS v20.0 (High Contrast + Bugs)
+    STYLE.CSS v22.0 (Final Fixes)
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
 body { min-height: 100vh; padding-top: 60px; transition: background 1s, color 1s; background-color: #1a1a1a; color: #ddd; overflow-x: hidden; user-select: none; -webkit-user-select: none; }
@@ -112,14 +112,6 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 .flip-card-front img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
 .flip-card-back { background: #111; color: white; transform: rotateY(180deg); box-shadow: 0 0 30px rgba(0,0,0,0.8); }
 .result-icon { font-size: 60px; margin-bottom: 10px; }
-
-/* SHUFFLE ANIMATION */
-.tableArea { width: 100%; min-height: 150px; display: flex; justify-content: center; align-items: center; }
-.cardDeck { position: relative; width: 90px; height: 130px; cursor: pointer; }
-.deckImg { width: 100%; height: 100%; border-radius: 8px; position: absolute; top:0; left:0; border: 1px solid #444; background:#fff; transition: transform 0.2s; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
-.layer1 { transform: translate(-2px, -2px); z-index: 2; }
-.layer2 { transform: translate(-4px, -4px); z-index: 1; }
-.deckImg:first-child { transform: translate(0, 0); z-index: 3; }
 
 .shaking .deckImg:first-child { animation: faroTop 1.2s infinite ease-in-out; }
 .shaking .layer1 { animation: faroBot 1.2s infinite ease-in-out; }
