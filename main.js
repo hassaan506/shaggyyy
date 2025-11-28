@@ -42,6 +42,7 @@ function playSound(name) {
         if(sounds[name]) {
             sounds[name].currentTime = 0;
             sounds[name].volume = 0.7; 
+            sounds[name].muted = false; 
             let p = sounds[name].play();
             if (p !== undefined) p.catch(e => { /* Ignore auto-play errors */ });
         }
@@ -168,26 +169,18 @@ const voteTargets = document.getElementById("voteTargets");
 let myCurrentRole = null;
 let lastPhase = "Waiting";
 let isTransitioning = false; 
+let hasShuffledLocal = false;
 
 // --- BUTTON LISTENERS ---
 
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
     const pid = localStorage.getItem("playerId");
-     
-    // Safety check if they managed to click this without joining
-    if(!myName || !pid) {
-        alert("Please join with a name first.");
-        return;
-    }
-
+    if(!myName || !pid) return alert("Please join with a name first.");
     if(confirm("Claim Host status? This controls the game flow.")) {
         playSound('click');
-        // Set the host in database
         await set(ref(db, "room/host"), { name: myName, id: pid });
-        // Set local storage
         localStorage.setItem("isHost", "true");
-        // Reload to refresh UI permissions
         location.reload(); 
     }
 });
@@ -225,19 +218,15 @@ shuffleBtn.addEventListener('click', async () => {
 });
 
 dealBtn.addEventListener('click', async () => {
-    // Sound removed as requested
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
-     
     let playersArr = Object.entries(snap.val());
     if(playersArr.length === 0) return;
-     
     shuffleArray(playersArr);
 
     const count = playersArr.length;
     let roles = [];
     let badGuyCount = count >= 8 ? 3 : (count >= 6 ? 2 : 1);
-
     if (badGuyCount === 1) roles.push(Math.random() < 0.5 ? "godfather" : "mafia");
     else {
         roles.push("godfather");
@@ -249,7 +238,6 @@ dealBtn.addEventListener('click', async () => {
     if (count > 7) roles.push("jester");
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
-
     shuffleArray(roles);
 
     playersArr.forEach(([pid], i) => {
@@ -273,10 +261,7 @@ dayBtn.addEventListener('click', async () => {
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val();
          
-        if (!players) {
-            alert("Error: No player data found!");
-            return;
-        }
+        if (!players) return alert("Error: No player data found!");
 
         const rSnap = await get(ref(db, "room/roundCount"));
         let r = rSnap.val() || 0;
@@ -306,7 +291,6 @@ dayBtn.addEventListener('click', async () => {
         if (potentialVictims.length > 0) {
              finalNightDeathId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
         }
-         
         let nightDeathReason = "Killed by Mafia";
 
         if (grandmaVotes > 0) {
@@ -316,8 +300,7 @@ dayBtn.addEventListener('click', async () => {
                     finalNightDeathId = badGuys[Math.floor(Math.random() * badGuys.length)][0];
                     nightDeathReason = "Grandma Ricochet";
                 } else finalNightDeathId = null;
-            } 
-            else if (grandmaVotes === 1 && grandmaAttacker) {
+            } else if (grandmaVotes === 1 && grandmaAttacker) {
                 finalNightDeathId = grandmaAttacker;
                 nightDeathReason = "Grandma Revenge";
             }
@@ -331,7 +314,6 @@ dayBtn.addEventListener('click', async () => {
             finalNightDeathId = null; 
             nightDeathReason = "Saved by Doctor";
         }
-
         let vestSaved = false;
         if (finalNightDeathId && players[finalNightDeathId] && players[finalNightDeathId].vestActive) {
             vestSaved = true;
@@ -354,33 +336,18 @@ dayBtn.addEventListener('click', async () => {
             await remove(ref(db, "room/votes")); 
             await set(ref(db, "room/gamePhase"), "day");
         });
-     
-    } catch (e) { 
-        console.error(e);
-        alert("Day Logic Error: " + e.message);
-    }
+    } catch (e) { alert("Day Logic Error: " + e.message); }
 });
-
-// --------------------------------------------------
-// 4. LOGIC
-// --------------------------------------------------
 
 firstJoinBtn.addEventListener('click', async () => {
     Object.values(sounds).forEach(s => {
         s.muted = true;
-        s.play().then(() => {
-            s.pause();
-            s.currentTime = 0;
-            s.muted = false;
-        }).catch(() => {});
+        s.play().then(() => { s.pause(); s.currentTime = 0; s.muted = false; }).catch(() => {});
     });
-
-    playSound('click'); 
     const name = playerNameInput.value.trim();
-    if (!name) { joinStatus.innerText = "Please enter a name."; return; }
+    if (!name) return;
     firstJoinBtn.disabled = true;
     firstJoinBtn.innerText = "Joining...";
-     
     try {
         const refP = push(ref(db, "room/players"));
         localStorage.setItem("playerId", refP.key);
@@ -391,18 +358,6 @@ firstJoinBtn.addEventListener('click', async () => {
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
-    }
-});
-
-onValue(ref(db, "room/players"), (snap) => {
-    if (isTransitioning) return; 
-    const players = snap.val();
-    const myId = localStorage.getItem("playerId");
-    const isHost = localStorage.getItem("isHost") === "true";
-
-    if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
-        localStorage.clear();
-        location.reload();
     }
 });
 
@@ -449,22 +404,16 @@ async function pushTag(pid, tag) {
 async function checkWinCondition() {
      const pSnap = await get(ref(db, "room/players"));
      const players = pSnap.val() || {};
-     
-     let townCount = 0;
-     let mafiaCount = 0;
-     let aliveCount = 0;
-     
+     let townCount = 0, mafiaCount = 0, aliveCount = 0;
      Object.values(players).forEach(p => {
-         if(!p.statusTags) { // Alive
+         if(!p.statusTags) {
              aliveCount++;
              if(p.role === "mafia" || p.role === "godfather") mafiaCount++;
              else townCount++;
          }
      });
-     
      const scoreSnap = await get(ref(db, "room/scoreboard"));
      let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
-     
      if (mafiaCount >= townCount && mafiaCount > 0) {
          scores.mafia++;
          await update(ref(db, "room/scoreboard"), scores);
@@ -476,6 +425,322 @@ async function checkWinCondition() {
          await set(ref(db, "room/winMessage"), "👷 TOWN WINS!");
          await set(ref(db, "room/gamePhase"), "GAME OVER");
      }
+}
+
+// --- MAIN LOOP ---
+onValue(ref(db, "room"), (snap) => {
+    const data = snap.val();
+    const myId = localStorage.getItem("playerId");
+
+    if (myId) {
+        screenJoin.classList.add("hidden");
+        screenJoin.classList.remove("flex-visible");
+    }
+
+    if (!data) {
+        if (localStorage.getItem("playerId") && !isTransitioning) {
+            localStorage.clear();
+            location.reload();
+        }
+        return;
+    }
+
+    const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
+    scoreTown.innerText = scores.town;
+    scoreMafia.innerText = scores.mafia;
+    if(scoreJester) scoreJester.innerText = scores.jester || 0;
+    scoreboard.classList.remove("hidden");
+
+    // Dynamic Table Size
+    const playerCount = Object.keys(data.players || {}).length;
+    if (playerCount > 7) jesterContainer.classList.remove("hidden");
+    else jesterContainer.classList.add("hidden");
+    const tableSurface = document.querySelector('.tableSurface');
+    if(tableSurface) {
+        if(playerCount <= 5) tableSurface.setAttribute('data-size', 'small');
+        else if(playerCount <= 10) tableSurface.setAttribute('data-size', 'medium');
+        else tableSurface.setAttribute('data-size', 'large');
+    }
+
+    allPlayersCache = data.players || {};
+    const isHost = localStorage.getItem("isHost") === "true";
+    const phase = data.gamePhase || "Waiting";
+     
+    // --- RESET UI FOR NEW PHASE ---
+    if (phase !== lastPhase) {
+        // DO NOT clear innerHTML of the panel, just hide it.
+        // We will clear the lists (actionTargets) in the loop below.
+        actionPanel.classList.add("hidden");
+        votingPanel.classList.add("hidden");
+
+        if (phase === "night") {
+            playSound('night');
+            if(roundCounter) roundCounter.innerText = `Night ${data.roundCount || 1}`;
+        }
+        if (phase === "day") {
+            playSound('day');
+            if(roundCounter) roundCounter.innerText = `Day ${data.roundCount || 1}`;
+            const pending = data.pendingResults || {};
+            // Result Modal Logic
+            if (pending.nightDeathId) {
+                 if (pending.reason && (pending.reason.includes("Mafia") || pending.reason.includes("Revenge"))) playSound('shotgun');
+                 nrTitle.innerText = "TRAGEDY!";
+                 nrIcon.innerText = "💀";
+                 nrName.innerText = getName(pending.nightDeathId);
+                 nrDetail.innerText = pending.reason;
+                 document.querySelector('.flip-card-back').className = "flip-card-back death";
+            } else if (pending.wasSaved) {
+                 nrTitle.innerText = "MIRACLE!";
+                 nrIcon.innerText = "🛡️";
+                 nrName.innerText = pending.savedName;
+                 nrDetail.innerText = "Saved by Doctor";
+                 document.querySelector('.flip-card-back').className = "flip-card-back save";
+            } else {
+                 nrTitle.innerText = "PEACEFUL NIGHT";
+                 nrIcon.innerText = "🌙";
+                 nrName.innerText = "No One";
+                 nrDetail.innerText = "Everyone Survived";
+                 document.querySelector('.flip-card-back').className = "flip-card-back safe";
+            }
+            nrCardInner.classList.remove("flipped");
+            nightResultModal.classList.remove("hidden");
+            setTimeout(() => { nrCardInner.classList.add("flipped"); }, 100);
+        }
+        lastPhase = phase;
+    }
+
+    // Shuffle Sound
+    if (data.isShuffling && !hasShuffledLocal) {
+        playSound('shuffle');
+        hasShuffledLocal = true;
+    }
+    if (!data.isShuffling) hasShuffledLocal = false;
+    if (data.deckDealt && !allPlayersCache[myId]?.role) playSound('click'); 
+
+    if(data.host) {
+        document.getElementById("hostName").innerText = data.host.name;
+        document.getElementById("hostStatus").innerText = "Host Online";
+        document.getElementById("hostStatus").style.color = "#28a745";
+    }
+
+    if(isHost) {
+        const list = document.getElementById("liveVoteList");
+        if(list) {
+            list.innerHTML = "";
+            let voteSource = (phase === "night") ? (data.night ? data.night.mafiaVotes : {}) : (data.votes || {});
+            Object.entries(voteSource).forEach(([pid, target]) => {
+                const li = document.createElement("li");
+                li.innerHTML = `<b>${getName(pid)}</b> ➔ ${getName(target)}`;
+                list.appendChild(li);
+            });
+        }
+    }
+     
+    const me = data.players ? data.players[myId] : null;
+    myCurrentRole = me ? me.role : null;
+    const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
+
+    if(phase === "night" && amIMafia) {
+        mafiaChat.classList.remove("hidden");
+        const liveFeed = document.getElementById("mafiaLiveFeed");
+        if (liveFeed) {
+            const votes = (data.night && data.night.mafiaVotes) ? data.night.mafiaVotes : {};
+            const voteList = Object.entries(votes).map(([pid, target]) => {
+                return `🔫 <b>${getName(pid)}</b> targets <b>${getName(target)}</b>`;
+            }).join("<br>");
+            liveFeed.innerHTML = voteList || "No targets selected yet...";
+        }
+    } else {
+        mafiaChat.classList.add("hidden");
+    }
+
+    document.getElementById("phaseText").innerText = phase;
+    document.body.className = phase === "night" ? "night" : (phase === "day" ? "day" : "");
+
+    if (phase === "Lobby" || !data.host) {
+        if (myId) screenJoin.classList.add("hidden"); 
+        screenGame.classList.add("hidden");
+        screenLobby.classList.remove("hidden");
+        gameOverModal.classList.add("hidden");
+        return;
+    } else {
+        screenLobby.classList.add("hidden");
+        if (isHost || (myId && myId !== "HOST")) screenGame.classList.remove("hidden");
+    }
+
+    if (phase === "GAME OVER") {
+        if(data.winMessage.includes("MAFIA") || data.winMessage.includes("JESTER")) playSound('mafiaWin');
+        else playSound('civWin');
+        gameOverModal.classList.remove("hidden");
+        document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
+        if (isHost) {
+            nextRoundBtn.classList.remove("hidden");
+            document.getElementById("waitingForHostText").classList.add("hidden");
+        } else {
+            nextRoundBtn.classList.add("hidden");
+            document.getElementById("waitingForHostText").classList.remove("hidden");
+        }
+        modalExitBtn.onclick = () => { localStorage.clear(); location.reload(); };
+        return; 
+    } else gameOverModal.classList.add("hidden");
+
+    if(isHost) {
+        hostControls.classList.remove("hidden");
+        endDayBtn.classList.toggle("hidden", phase !== "day");
+        hostFeed.classList.remove("hidden");
+    }
+
+    const isDealt = data.deckDealt === true;
+    if (isDealt) {
+        centralDeck.classList.add("hidden");
+        if(isHost) { shuffleBtn.disabled = true; dealBtn.disabled = true; }
+    } else {
+        centralDeck.classList.remove("hidden");
+        const deckImg = document.querySelector(".cardDeck");
+        if(deckImg) data.isShuffling ? deckImg.classList.add("shaking") : deckImg.classList.remove("shaking");
+        deckStatus.innerText = data.isShuffling ? "Shuffling..." : "Ready";
+        if(isHost) {
+            const canDeal = data.hasShuffled === true;
+            dealBtn.disabled = !canDeal;
+            dealBtn.style.opacity = canDeal ? "1" : "0.5";
+        }
+    }
+
+    playersList.innerHTML = "";
+    // --- CRITICAL FIX: Clear action targets so they can be rebuilt without duplication ---
+    actionTargets.innerHTML = "";
+    voteTargets.innerHTML = "";
+    // -------------------------------------------------------------------------------------
+
+    if (data.players) {
+        const amDead = me && me.statusTags && me.statusTags.length > 0;
+
+        Object.entries(data.players).forEach(([pid, p]) => {
+            if (data.host && p.name === data.host.name) return;
+
+            const isMe = pid === myId;
+            const canSeeRole = isHost || isMe || (amIMafia && (p.role === "mafia" || p.role === "godfather"));
+            let cardHtml = `<div class="emptySlot">Wait</div>`;
+            if (isDealt) {
+                const img = canSeeRole ? p.role : "back";
+                cardHtml = `<img src="images/${img}.png" onerror="this.src='https://via.placeholder.com/80?text=${img}'">`;
+            }
+            let statusHtml = p.statusTags ? `<div style="background:red; color:white; font-weight:bold; font-size:12px; margin-top:5px; border-radius:4px;">${p.statusTags}</div>` : "";
+
+            const div = document.createElement("div");
+            div.classList.add("playerCard");
+             
+            if(isHost) {
+                const kickBtn = document.createElement("button");
+                kickBtn.className = "kickBtn";
+                kickBtn.innerText = "X";
+                kickBtn.dataset.pid = pid;
+                kickBtn.dataset.name = p.name;
+                div.appendChild(kickBtn);
+                if(isDealt && !p.role && phase !== "night") {
+                    const lateDealBtn = document.createElement("button");
+                    lateDealBtn.className = "lateDealBtn";
+                    lateDealBtn.innerText = "🃏 Deal Entry";
+                    lateDealBtn.dataset.pid = pid;
+                    div.appendChild(lateDealBtn);
+                }
+            }
+            if (isDealt && canSeeRole && p.role) {
+                const viewBtn = document.createElement("button");
+                viewBtn.className = "viewRoleBtn";
+                viewBtn.innerText = "👁️";
+                viewBtn.dataset.role = p.role;
+                viewBtn.dataset.name = p.name;
+                div.appendChild(viewBtn);
+            }
+            div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
+            playersList.appendChild(div);
+
+            // --- ROLE LOGIC ---
+            if (me && !amDead && me.role) { 
+                if (phase === "night") {
+                    let showAction = false;
+                    // Mafia Logic: Shoot anyone who isn't Mafia
+                    if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) showAction = true;
+                    // Doctor Logic: Heal anyone
+                    if (myCurrentRole === "doctor") showAction = true;
+                    // Detective Logic: Investigate anyone else
+                    if (myCurrentRole === "detective" && !isMe) showAction = true;
+                     
+                    if (showAction) {
+                          actionPanel.classList.remove("hidden");
+                          submitActionBtn.disabled = false; // Re-enable main button just in case
+                          createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
+                    }
+                     
+                    // Vest Logic
+                    if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
+                         if(!document.getElementById("vestBtn")) {
+                                const vestBtn = document.createElement("button");
+                                vestBtn.id = "vestBtn";
+                                vestBtn.className = "vestBtn";
+                                vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
+                                vestBtn.onclick = async () => {
+                                    if(confirm("Use your ONE bulletproof vest tonight?")) {
+                                        playSound('click');
+                                        await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
+                                    }
+                                };
+                                actionPanel.prepend(vestBtn);
+                                actionPanel.classList.remove("hidden");
+                         }
+                    }
+                }
+                 
+                if (phase === "day" && !isMe) {
+                    votingPanel.classList.remove("hidden");
+                    createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
+                     
+                    const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
+                    if(!skipExists) {
+                        const skipBtn = document.createElement("button");
+                        skipBtn.innerText = "😴 SKIP VOTE";
+                        skipBtn.dataset.pid = "SKIP";
+                        skipBtn.className = "skipBtn";
+                        skipBtn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            playSound('click');
+                            Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
+                            skipBtn.classList.add("selected");
+                            submitVoteBtn.disabled = false;
+                            submitVoteBtn.dataset.vote = "SKIP";
+                        });
+                        voteTargets.prepend(skipBtn);
+                    }
+                }
+            } else if (amDead) {
+                actionPanel.classList.add("hidden");
+                votingPanel.classList.add("hidden");
+            }
+        });
+    }
+     
+    // Highlight previously selected
+    const currentVote = (phase === "day") ? (data.votes?.[myId]) : (data.night?.mafiaVotes?.[myId]);
+    const panel = (phase === "day") ? voteTargets : actionTargets;
+    if (panel && currentVote) {
+        Array.from(panel.children).forEach(btn => {
+            if(btn.dataset.pid === currentVote) btn.classList.add("selected");
+            else btn.classList.remove("selected");
+        });
+        // Also ensure the submit button is waiting for confirmation if needed
+        if(currentVote) {
+            if(phase === "day") { submitVoteBtn.disabled = false; submitVoteBtn.dataset.vote = currentVote; }
+            else { submitActionBtn.disabled = false; submitActionBtn.dataset.target = currentVote; }
+        }
+    }
+});
+
+// Run on load check
+if (localStorage.getItem("playerId")) {
+    screenJoin.classList.add("hidden");
+    screenJoin.classList.remove("flex-visible");
+    screenLobby.classList.remove("hidden"); 
 }
 
 playersList.addEventListener('click', (e) => {
@@ -621,322 +886,3 @@ onValue(ref(db, "room/publicReport"), (snap) => {
     const msg = snap.val();
     if (msg) showReport("📢 DAILY NEWS", msg);
 });
-
-onValue(ref(db, "room"), (snap) => {
-    const data = snap.val();
-
-    // --- FIX: Force Hide Login if Logged In ---
-    const myId = localStorage.getItem("playerId");
-    if (myId) {
-        screenJoin.classList.add("hidden");
-        screenJoin.classList.remove("flex-visible");
-    }
-    // ------------------------------------------
-
-    if (!data) {
-        if (localStorage.getItem("playerId") && !isTransitioning) {
-            localStorage.clear();
-            location.reload();
-        }
-        return;
-    }
-
-    const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
-    scoreTown.innerText = scores.town;
-    scoreMafia.innerText = scores.mafia;
-    if(scoreJester) scoreJester.innerText = scores.jester || 0;
-    scoreboard.classList.remove("hidden");
-
-    const playerCount = Object.keys(data.players || {}).length;
-    if (playerCount > 7) jesterContainer.classList.remove("hidden");
-    else jesterContainer.classList.add("hidden");
-
-    allPlayersCache = data.players || {};
-    const isHost = localStorage.getItem("isHost") === "true";
-    // const myId = localStorage.getItem("playerId"); // Already defined above
-    const phase = data.gamePhase || "Waiting";
-     
-    // Phase Change Logic
-    if (phase !== lastPhase) {
-        // Clear Voting Panels when Phase Changes
-        document.getElementById("votingPanel").innerHTML = ""; 
-        document.getElementById("actionPanel").innerHTML = ""; 
-         
-        if (phase === "night") {
-            playSound('night');
-            if(roundCounter) roundCounter.innerText = `Night ${data.roundCount || 1}`;
-        }
-        if (phase === "day") {
-            playSound('day');
-            if(roundCounter) roundCounter.innerText = `Day ${data.roundCount || 1}`;
-             
-            const pending = data.pendingResults || {};
-            if (pending.nightDeathId) {
-                 if (pending.reason && (pending.reason.includes("Mafia") || pending.reason.includes("Revenge"))) playSound('shotgun');
-                 nrTitle.innerText = "TRAGEDY!";
-                 nrIcon.innerText = "💀";
-                 nrName.innerText = getName(pending.nightDeathId);
-                 nrDetail.innerText = pending.reason;
-                 document.querySelector('.flip-card-back').className = "flip-card-back death";
-            } else if (pending.wasSaved) {
-                 nrTitle.innerText = "MIRACLE!";
-                 nrIcon.innerText = "🛡️";
-                 nrName.innerText = pending.savedName;
-                 nrDetail.innerText = "Saved by Doctor";
-                 document.querySelector('.flip-card-back').className = "flip-card-back save";
-            } else {
-                 nrTitle.innerText = "PEACEFUL NIGHT";
-                 nrIcon.innerText = "🌙";
-                 nrName.innerText = "No One";
-                 nrDetail.innerText = "Everyone Survived";
-                 document.querySelector('.flip-card-back').className = "flip-card-back safe";
-            }
-             
-            nrCardInner.classList.remove("flipped");
-            nightResultModal.classList.remove("hidden");
-            setTimeout(() => { nrCardInner.classList.add("flipped"); }, 100);
-        }
-        lastPhase = phase;
-    }
-
-    if (data.isShuffling) playSound('shuffle');
-    if (data.deckDealt && !allPlayersCache[myId]?.role) playSound('click'); 
-
-    if(data.host) {
-        document.getElementById("hostName").innerText = data.host.name;
-        document.getElementById("hostStatus").innerText = "Host Online";
-        document.getElementById("hostStatus").style.color = "#28a745";
-    }
-
-    // UPDATE HOST FEED & MAFIA FEED
-    if(isHost) {
-        const list = document.getElementById("liveVoteList");
-        if(list) {
-            list.innerHTML = "";
-            let voteSource = (phase === "night") ? (data.night ? data.night.mafiaVotes : {}) : (data.votes || {});
-            Object.entries(voteSource).forEach(([pid, target]) => {
-                const li = document.createElement("li");
-                li.innerHTML = `<b>${getName(pid)}</b> ➔ ${getName(target)}`;
-                list.appendChild(li);
-            });
-        }
-    }
-     
-    // UPDATE MAFIA FEED
-    const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
-    if(phase === "night" && amIMafia) {
-        mafiaChat.classList.remove("hidden");
-        const liveFeed = document.getElementById("mafiaLiveFeed");
-        if (liveFeed) {
-            const votes = (data.night && data.night.mafiaVotes) ? data.night.mafiaVotes : {};
-            const voteList = Object.entries(votes).map(([pid, target]) => {
-                const voterName = getName(pid);
-                const targetName = getName(target);
-                return `🔫 <b>${voterName}</b> targets <b>${targetName}</b>`;
-            }).join("<br>");
-            liveFeed.innerHTML = voteList || "No targets selected yet...";
-        }
-    } else {
-        mafiaChat.classList.add("hidden");
-    }
-
-    document.getElementById("phaseText").innerText = phase;
-    if(phase === "night") {
-        document.body.className = "night";
-    } else if (phase === "day") {
-        document.body.className = "day";
-    } else {
-        document.body.className = "";
-    }
-
-    if (phase === "Lobby" || !data.host) {
-        // We are in Lobby Phase
-        if (myId) screenJoin.classList.add("hidden"); // Double check to hide join
-        screenGame.classList.add("hidden");
-        screenLobby.classList.remove("hidden");
-        gameOverModal.classList.add("hidden");
-        return;
-    } else {
-        screenLobby.classList.add("hidden");
-        if (isHost || (myId && myId !== "HOST")) {
-            screenGame.classList.remove("hidden");
-        }
-    }
-
-    if (phase === "GAME OVER") {
-        if(data.winMessage.includes("MAFIA") || data.winMessage.includes("JESTER")) playSound('mafiaWin');
-        else playSound('civWin');
-
-        gameOverModal.classList.remove("hidden");
-        document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
-        if (isHost) {
-            nextRoundBtn.classList.remove("hidden");
-            document.getElementById("waitingForHostText").classList.add("hidden");
-        } else {
-            nextRoundBtn.classList.add("hidden");
-            document.getElementById("waitingForHostText").classList.remove("hidden");
-        }
-        modalExitBtn.onclick = () => { localStorage.clear(); location.reload(); };
-        return; 
-    } else {
-        gameOverModal.classList.add("hidden");
-    }
-
-    if(isHost) {
-        hostControls.classList.remove("hidden");
-        endDayBtn.classList.toggle("hidden", phase !== "day");
-        hostFeed.classList.remove("hidden");
-    }
-
-    const isDealt = data.deckDealt === true;
-    if (isDealt) {
-        centralDeck.classList.add("hidden");
-        if(isHost) { shuffleBtn.disabled = true; dealBtn.disabled = true; }
-    } else {
-        centralDeck.classList.remove("hidden");
-        const deckImg = document.querySelector(".cardDeck");
-        if(deckImg) data.isShuffling ? deckImg.classList.add("shaking") : deckImg.classList.remove("shaking");
-        deckStatus.innerText = data.isShuffling ? "Shuffling..." : "Ready";
-        if(isHost) {
-            const canDeal = data.hasShuffled === true;
-            dealBtn.disabled = !canDeal;
-            dealBtn.style.opacity = canDeal ? "1" : "0.5";
-        }
-    }
-
-    playersList.innerHTML = "";
-    if (data.players) {
-        const me = data.players[myId];
-        myCurrentRole = me ? me.role : null;
-        const amDead = me && me.statusTags && me.statusTags.length > 0;
-        const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
-        // const hasVotedDay = data.votes && data.votes[myId];
-
-        if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
-        else mafiaChat.classList.add("hidden");
-
-        Object.entries(data.players).forEach(([pid, p]) => {
-            if (data.host && p.name === data.host.name) return;
-
-            const isMe = pid === myId;
-            const canSeeRole = isHost || isMe || (amIMafia && (p.role === "mafia" || p.role === "godfather"));
-             
-            let cardHtml = `<div class="emptySlot">Wait</div>`;
-            if (isDealt) {
-                const img = canSeeRole ? p.role : "back";
-                cardHtml = `<img src="images/${img}.png" onerror="this.src='https://via.placeholder.com/80?text=${img}'">`;
-            }
-
-            let statusHtml = "";
-            if (p.statusTags) statusHtml = `<div style="background:red; color:white; font-weight:bold; font-size:12px; margin-top:5px; border-radius:4px;">${p.statusTags}</div>`;
-
-            const div = document.createElement("div");
-            div.classList.add("playerCard");
-             
-            if(isHost) {
-                const kickBtn = document.createElement("button");
-                kickBtn.className = "kickBtn";
-                kickBtn.innerText = "X";
-                kickBtn.dataset.pid = pid;
-                kickBtn.dataset.name = p.name;
-                div.appendChild(kickBtn);
-
-                if(isDealt && !p.role && phase !== "night") {
-                    const lateDealBtn = document.createElement("button");
-                    lateDealBtn.className = "lateDealBtn";
-                    lateDealBtn.innerText = "🃏 Deal Entry";
-                    lateDealBtn.dataset.pid = pid;
-                    div.appendChild(lateDealBtn);
-                }
-            }
-
-            if (isDealt && canSeeRole && p.role) {
-                const viewBtn = document.createElement("button");
-                viewBtn.className = "viewRoleBtn";
-                viewBtn.innerText = "👁️";
-                viewBtn.dataset.role = p.role;
-                viewBtn.dataset.name = p.name;
-                div.appendChild(viewBtn);
-            }
-
-            div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
-            playersList.appendChild(div);
-
-            if (me && !amDead && me.role) { 
-                // const nightData = data.night || {}; // Unused
-                if (phase === "night") {
-                    // let alreadyVoted = false; // Unused
-                     
-                    let showAction = false;
-                    if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) showAction = true;
-                    if (myCurrentRole === "doctor") showAction = true;
-                    if (myCurrentRole === "detective" && !isMe) showAction = true;
-                     
-                    if (showAction) {
-                          actionPanel.classList.remove("hidden");
-                          createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
-                    }
-                     
-                    if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
-                         if(!document.getElementById("vestBtn")) {
-                                const vestBtn = document.createElement("button");
-                                vestBtn.id = "vestBtn";
-                                vestBtn.className = "vestBtn";
-                                vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
-                                vestBtn.onclick = async () => {
-                                    if(confirm("Use your ONE bulletproof vest tonight?")) {
-                                        playSound('click');
-                                        await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
-                                    }
-                                };
-                                actionPanel.prepend(vestBtn);
-                                actionPanel.classList.remove("hidden");
-                         }
-                    }
-                }
-                 
-                if (phase === "day" && !isMe) {
-                    votingPanel.classList.remove("hidden");
-                    createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
-                     
-                    const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
-                        if(!skipExists) {
-                            const skipBtn = document.createElement("button");
-                            skipBtn.innerText = "😴 SKIP VOTE";
-                            skipBtn.dataset.pid = "SKIP";
-                            skipBtn.className = "skipBtn";
-                            skipBtn.addEventListener('click', (e) => {
-                                e.preventDefault();
-                                playSound('click');
-                                Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
-                                skipBtn.classList.add("selected");
-                                submitVoteBtn.disabled = false;
-                                submitVoteBtn.dataset.vote = "SKIP";
-                            });
-                            voteTargets.prepend(skipBtn);
-                        }
-                }
-            } else if (amDead) {
-                actionPanel.classList.add("hidden");
-                votingPanel.classList.add("hidden");
-            }
-        });
-    }
-     
-    // HIGHLIGHT SELECTED VOTE BUTTONS
-    const currentVote = (phase === "day") ? (data.votes?.[myId]) : (data.night?.mafiaVotes?.[myId]);
-    const panel = (phase === "day") ? voteTargets : actionTargets;
-    if (panel && currentVote) {
-        Array.from(panel.children).forEach(btn => {
-            if(btn.dataset.pid === currentVote) btn.classList.add("selected");
-            else btn.classList.remove("selected");
-        });
-    }
-});
-
-// --- FIX: Run on load to hide login immediately if known ---
-if (localStorage.getItem("playerId")) {
-    screenJoin.classList.add("hidden");
-    screenJoin.classList.remove("flex-visible");
-    screenLobby.classList.remove("hidden"); // Show lobby temporarily while data loads
-}
