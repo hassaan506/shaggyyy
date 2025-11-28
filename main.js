@@ -19,7 +19,7 @@ try {
 } catch (e) { console.error(e); }
 
 // --- SOUND ENGINE ---
-// STRICT RULES: No generic clicks.
+// REMOVED 'click' entirely to ensure silence on buttons.
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
     deal: new Audio('sound/deal.mp3'),          
@@ -30,7 +30,7 @@ const sounds = {
     shotgun: new Audio('sound/shotgun.mp3')
 };
 
-// Global Unlocker for Mobile (Silent)
+// Global Unlocker for Mobile (Silent Load)
 document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
         if(s.readyState === 0) s.load();
@@ -46,7 +46,7 @@ function playSound(name) {
             let p = sounds[name].play();
             if (p !== undefined) p.catch(e => { /* Ignore auto-play errors */ });
         }
-    } catch(e) { /* Ignore missing sounds */ }
+    } catch(e) { /* Ignore */ }
 }
 
 // --- UTILS ---
@@ -76,7 +76,7 @@ function createBtn(parent, text, pid, mainBtn, dataAttr) {
      btn.dataset.pid = pid;
      btn.addEventListener('click', (e) => {
          e.preventDefault();
-         // NO SOUND HERE.
+         // SILENT - No sound played here
          
          // Deselect all siblings
          Array.from(parent.children).forEach(c => c.classList.remove("selected"));
@@ -179,10 +179,15 @@ let isFirstLoad = true;
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
     const pid = localStorage.getItem("playerId");
-    if(!myName || !pid) return alert("Please join with a name first.");
+    
+    // Fix: If no name found (user got here via reset), reload to force Join Screen
+    if(!myName || !pid) {
+        localStorage.clear();
+        location.reload();
+        return;
+    }
     
     if(confirm("Claim Host status? This controls the game flow.")) {
-        // No sound here, just reload logic
         await set(ref(db, "room/host"), { name: myName, id: pid });
         localStorage.setItem("isHost", "true");
         location.reload(); 
@@ -191,9 +196,9 @@ claimHostBtn.addEventListener('click', async () => {
 
 hardResetBtn.addEventListener('click', async () => {
     if (confirm("HARD RESET? This kicks everyone.")) {
+        // Removing the entire room node ensures 'data' becomes null for everyone
         await remove(ref(db, "room"));
-        localStorage.clear();
-        location.reload();
+        // The listener will handle the kicking
     }
 });
 
@@ -210,7 +215,7 @@ nextRoundBtn.addEventListener('click', async () => {
 });
 
 shuffleBtn.addEventListener('click', async () => {
-    // Only host clicks this, sound triggers via DB for everyone
+    playSound('shuffle');
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
     setTimeout(async () => {
@@ -245,7 +250,6 @@ dealBtn.addEventListener('click', async () => {
     playersArr.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
     });
-    // This DB change triggers the Deal sound in the main loop
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
     await set(ref(db, "room/roundCount"), 0);
@@ -345,7 +349,17 @@ dayBtn.addEventListener('click', async () => {
 
 firstJoinBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
-    if (!name) return;
+    if (!name) {
+        alert("Please enter your name!");
+        return;
+    }
+    
+    // Init Audio context
+    Object.values(sounds).forEach(s => {
+        s.muted = true;
+        s.play().then(() => { s.pause(); s.currentTime = 0; s.muted = false; }).catch(() => {});
+    });
+
     firstJoinBtn.disabled = true;
     firstJoinBtn.innerText = "Joining...";
     try {
@@ -354,7 +368,7 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
         await set(refP, { name, role: null, statusTags: "" });
-        screenJoin.classList.add("hidden");
+        // Don't hide screen here, wait for DB listener to confirm
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
@@ -362,9 +376,13 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 async function performSoftReset() {
+    // FIX: Clear Host first to trigger Lobby mode
+    await remove(ref(db, "room/host"));
+
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
     const updates = {};
+    
     Object.keys(players).forEach(pid => {
         updates[`room/players/${pid}/role`] = null;
         updates[`room/players/${pid}/statusTags`] = "";
@@ -372,8 +390,7 @@ async function performSoftReset() {
         updates[`room/players/${pid}/vestActive`] = false;
     });
     
-    // FIX: ATOMIC RESET OF HOST
-    updates["room/host"] = null;
+    updates["room/host"] = null; // Ensure null in update
     updates["room/night"] = null;
     updates["room/votes"] = null;
     updates["room/pendingResults"] = null;
@@ -386,7 +403,6 @@ async function performSoftReset() {
     updates["room/roundCount"] = 0; 
     
     await update(ref(db), updates);
-    // Explicitly reset local state
     localStorage.setItem("isHost", "false");
 }
 
@@ -430,22 +446,38 @@ onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
     const myId = localStorage.getItem("playerId");
 
-    // --- FIX: Reset Logic & Host Claim ---
-    // If no host exists in DB, force everyone's local logic to 'Lobby' mode
-    if (!data || !data.host) {
-        if (localStorage.getItem("isHost") === "true") {
-             localStorage.setItem("isHost", "false");
+    // --- FIX: HARD RESET & STALE ID CHECK ---
+    // 1. If DB is empty (Hard Reset) -> Kick Everyone
+    if (!data) {
+        if (localStorage.getItem("playerId")) {
+            localStorage.clear();
+            location.reload();
         }
-        
-        if (myId) {
-             screenJoin.classList.add("hidden"); 
-             screenGame.classList.add("hidden"); 
-             screenLobby.classList.remove("hidden"); // Host button is here
-             gameOverModal.classList.add("hidden");
-        }
+        return; // Stop execution
+    }
+
+    // 2. If I have an ID but am not in the DB (Stale Player) -> Kick Me
+    if (myId && (!data.players || !data.players[myId])) {
+        localStorage.clear();
+        location.reload();
         return;
     }
 
+    // 3. If no Host (Soft Reset/Lobby) -> Reset Local Host Status & Show Lobby
+    if (!data.host) {
+        if (localStorage.getItem("isHost") === "true") {
+             localStorage.setItem("isHost", "false");
+        }
+        if (myId) {
+             screenJoin.classList.add("hidden"); 
+             screenGame.classList.add("hidden"); 
+             screenLobby.classList.remove("hidden");
+             gameOverModal.classList.add("hidden");
+        }
+        return; // Stop execution, wait for Host
+    }
+
+    // --- Normal Game Flow ---
     if (myId) {
         screenJoin.classList.add("hidden");
         screenJoin.classList.remove("flex-visible");
@@ -502,12 +534,9 @@ onValue(ref(db, "room"), (snap) => {
                  const amIMafia = (myRole === "mafia" || myRole === "godfather");
                  const amIVictim = (myId === pending.nightDeathId);
                  
-                 // Check: Mafia Kill?
                  if (pending.reason && pending.reason.includes("Mafia")) {
                      if (amIMafia || amIVictim) playSound('shotgun');
                  } 
-                 // If killed by Grandma revenge, maybe everyone hears it? Or same logic.
-                 // For now, sticking to your request: Only Mafia/Victim hear successful mafia kill.
                  
                  nrTitle.innerText = "TRAGEDY!";
                  nrIcon.innerText = "💀";
@@ -534,14 +563,14 @@ onValue(ref(db, "room"), (snap) => {
         lastPhase = phase;
     }
 
-    // Shuffle Sound (Everyone hears)
+    // Shuffle Sound
     if (data.isShuffling && !hasShuffledLocal) {
         playSound('shuffle');
         hasShuffledLocal = true;
     }
     if (!data.isShuffling) hasShuffledLocal = false;
     
-    // Deal Sound (Everyone hears)
+    // Deal Sound
     if (data.deckDealt && !hasDealtLocal) {
         playSound('deal'); 
         hasDealtLocal = true;
@@ -701,7 +730,7 @@ onValue(ref(db, "room"), (snap) => {
                           createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
                     }
                      
-                    // Vest Logic
+                    // Vest Logic (Only for self, once)
                     if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
                          if(!document.getElementById("vestBtn")) {
                                 const vestBtn = document.createElement("button");
@@ -748,6 +777,7 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
      
+    // Highlight previously selected
     const currentVote = (phase === "day") ? (data.votes?.[myId]) : (data.night?.mafiaVotes?.[myId]);
     const panel = (phase === "day") ? voteTargets : actionTargets;
     if (panel && currentVote) {
