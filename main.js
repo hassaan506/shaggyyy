@@ -30,7 +30,7 @@ const sounds = {
     click: new Audio('sound/deal.mp3') 
 };
 
-// Global Unlocker for Mobile
+// Global Unlocker for Mobile (SILENT)
 document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
         if(s.readyState === 0) s.load();
@@ -656,8 +656,8 @@ onValue(ref(db, "room"), (snap) => {
             div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
             playersList.appendChild(div);
 
-            // --- ROLE LOGIC ---
-            if (me && !amDead && me.role) { 
+            // --- ROLE LOGIC (Hidden for Host) ---
+            if (me && !amDead && me.role && !isHost) { 
                 if (phase === "night") {
                     let showAction = false;
                     // Mafia Logic: Shoot anyone who isn't Mafia
