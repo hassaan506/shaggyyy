@@ -1,5 +1,5 @@
 /* ---------------------------------------------
-    STYLE.CSS v15.0
+    STYLE.CSS v16.0 (Fixed)
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
 body { min-height: 100vh; padding-top: 60px; transition: background 1s, color 1s; background-color: #1a1a1a; color: #ddd; overflow-x: hidden; user-select: none; -webkit-user-select: none; }
@@ -107,5 +107,17 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 .shaking .layer1 { animation: faroBot 1.2s infinite ease-in-out; }
 @keyframes faroTop { 0% { transform: translate(0,0); } 40% { transform: translateX(40px) translateY(-10px) rotate(10deg); } 60% { transform: translate(0,0); } }
 @keyframes faroBot { 0% { transform: translate(-2px,-2px); } 40% { transform: translateX(-40px) translateY(10px) rotate(-10deg); } 60% { transform: translate(-2px,-2px); } }
+
+/* FIX FOR ROLE REVEAL IMAGE SIZE */
+#roleModal img {
+    max-width: 100%;
+    max-height: 60vh; /* Limits height to 60% of screen */
+    width: auto;
+    object-fit: contain;
+    margin: 10px auto;
+    display: block;
+}
+/* Helper for displaying hidden things without !important conflict */
+.flex-visible { display: flex !important; }
 
 @media (max-width: 768px) { .gameContainer { grid-template-columns: 1fr; } .rightPanel { order: -1; } }
