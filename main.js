@@ -21,11 +21,11 @@ try {
 // --- SOUND ENGINE ---
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
-    deal: new Audio('sound/deal.mp3'),         
+    deal: new Audio('sound/deal.mp3'),          
     night: new Audio('sound/night.mp3'),
     day: new Audio('sound/rooster.mp3'),
-    mafiaWin: new Audio('sound/win.mp3'),      
-    civWin: new Audio('sound/victory.mp3'),    
+    mafiaWin: new Audio('sound/win.mp3'),       
+    civWin: new Audio('sound/victory.mp3'),     
     shotgun: new Audio('sound/shotgun.mp3'),
     click: new Audio('sound/deal.mp3') 
 };
@@ -171,11 +171,10 @@ let isTransitioning = false;
 
 // --- BUTTON LISTENERS ---
 
-// *** BUG FIX: THIS LISTENER WAS MISSING ***
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
     const pid = localStorage.getItem("playerId");
-    
+     
     // Safety check if they managed to click this without joining
     if(!myName || !pid) {
         alert("Please join with a name first.");
@@ -625,6 +624,15 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
+
+    // --- FIX: Force Hide Login if Logged In ---
+    const myId = localStorage.getItem("playerId");
+    if (myId) {
+        screenJoin.classList.add("hidden");
+        screenJoin.classList.remove("flex-visible");
+    }
+    // ------------------------------------------
+
     if (!data) {
         if (localStorage.getItem("playerId") && !isTransitioning) {
             localStorage.clear();
@@ -645,7 +653,7 @@ onValue(ref(db, "room"), (snap) => {
 
     allPlayersCache = data.players || {};
     const isHost = localStorage.getItem("isHost") === "true";
-    const myId = localStorage.getItem("playerId");
+    // const myId = localStorage.getItem("playerId"); // Already defined above
     const phase = data.gamePhase || "Waiting";
      
     // Phase Change Logic
@@ -742,6 +750,8 @@ onValue(ref(db, "room"), (snap) => {
     }
 
     if (phase === "Lobby" || !data.host) {
+        // We are in Lobby Phase
+        if (myId) screenJoin.classList.add("hidden"); // Double check to hide join
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
         gameOverModal.classList.add("hidden");
@@ -800,7 +810,7 @@ onValue(ref(db, "room"), (snap) => {
         myCurrentRole = me ? me.role : null;
         const amDead = me && me.statusTags && me.statusTags.length > 0;
         const amIMafia = (myCurrentRole === "mafia" || myCurrentRole === "godfather");
-        const hasVotedDay = data.votes && data.votes[myId];
+        // const hasVotedDay = data.votes && data.votes[myId];
 
         if (phase === "night" && amIMafia) mafiaChat.classList.remove("hidden");
         else mafiaChat.classList.add("hidden");
@@ -853,9 +863,9 @@ onValue(ref(db, "room"), (snap) => {
             playersList.appendChild(div);
 
             if (me && !amDead && me.role) { 
-                const nightData = data.night || {};
+                // const nightData = data.night || {}; // Unused
                 if (phase === "night") {
-                    let alreadyVoted = false;
+                    // let alreadyVoted = false; // Unused
                      
                     let showAction = false;
                     if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) showAction = true;
@@ -923,3 +933,10 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
 });
+
+// --- FIX: Run on load to hide login immediately if known ---
+if (localStorage.getItem("playerId")) {
+    screenJoin.classList.add("hidden");
+    screenJoin.classList.remove("flex-visible");
+    screenLobby.classList.remove("hidden"); // Show lobby temporarily while data loads
+}
