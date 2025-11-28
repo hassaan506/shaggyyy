@@ -18,21 +18,22 @@ try {
     db = getDatabase(app);
 } catch (e) { console.error(e); }
 
-// --- SOUND ENGINE (MATCHED TO YOUR FILES) ---
-// Files must be in 'sound' folder (singular)
+// --- SOUND ENGINE ---
 const sounds = {
-    shuffle: new Audio('sound/shuffle.mp3'), 
+    shuffle: new Audio('sound/shuffle.mp3'),
+    deal: new Audio('sound/deal.mp3'),       
     night: new Audio('sound/wolf.mp3'),
     day: new Audio('sound/rooster.mp3'),
+    click: new Audio('sound/click.mp3'),     
     mafiaWin: new Audio('sound/win.mp3'),    
     civWin: new Audio('sound/victory.mp3'),  
     shotgun: new Audio('sound/shotgun.mp3')  
 };
 
-// Global Audio Unlocker (Fixes "Audio Context" errors)
+// Global Unlocker
 document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
-        if(s.readyState === 0) s.load(); // Preload all
+        if(s.readyState === 0) s.load();
     });
 }, { once: true });
 
@@ -42,7 +43,7 @@ function playSound(name) {
             sounds[name].currentTime = 0;
             sounds[name].volume = 0.7; 
             let p = sounds[name].play();
-            if (p !== undefined) p.catch(e => console.log("Sound blocked: interact with screen first."));
+            if (p !== undefined) p.catch(e => {});
         }
     } catch(e) { console.log("Sound error", e); }
 }
@@ -104,7 +105,11 @@ const voteTargets = document.getElementById("voteTargets");
 
 let allPlayersCache = {}; 
 let myCurrentRole = null;
+
+// State Trackers for Sound
 let lastPhase = "Waiting";
+let wasShuffling = false;
+let wasDealt = false;
 
 // --- UTILS ---
 function shuffleArray(array) {
@@ -125,6 +130,7 @@ if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
 }
 
 firstJoinBtn.addEventListener('click', async () => {
+    playSound('click');
     const name = playerNameInput.value.trim();
     if (!name) { joinStatus.innerText = "Please enter a name."; return; }
     firstJoinBtn.disabled = true;
@@ -137,7 +143,6 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("isHost", "false");
         await set(refP, { name, role: null, statusTags: "" });
         screenJoin.classList.add("hidden");
-        // No reload, let onValue handle it
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
@@ -145,50 +150,22 @@ firstJoinBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 2. LOBBY & HOST (FIXED - NO RELOAD)
+// 2. LOBBY & HOST
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
+    playSound('click');
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
-    if(!myName) {
-        alert("Error: No Name Found. Please rejoin.");
-        localStorage.clear();
-        location.reload();
-        return;
-    }
+    if(!myName) return location.reload();
 
-    claimHostBtn.disabled = true;
-    claimHostBtn.innerText = "Claiming...";
-
-    // 1. Set Local Storage FIRST (Critical for Kick Logic)
-    localStorage.setItem("isHost", "true");
-    localStorage.setItem("playerId", "HOST");
-
-    // 2. Update DB
     await set(ref(db, "room/host"), { name: myName });
-    
-    // 3. Remove "Player" entry
     if (myTempId && myTempId !== "HOST") {
         try { await remove(ref(db, `room/players/${myTempId}`)); } catch (e) {}
     }
-
-    // 4. Start Game
     await set(ref(db, "room/gamePhase"), "Waiting");
-    
-    // No reload needed. onValue will see 'host' exists and show controls.
-});
-
-// AUTO-KICK PROTECTION
-onValue(ref(db, "room/players"), (snap) => {
-    const players = snap.val();
-    const myId = localStorage.getItem("playerId");
-    const isHost = localStorage.getItem("isHost") === "true";
-
-    // If I have an ID, am not Host, and am NOT in the DB -> Kicked
-    if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
-        localStorage.clear();
-        location.reload();
-    }
+    localStorage.setItem("isHost", "true");
+    localStorage.setItem("playerId", "HOST");
+    location.reload();
 });
 
 async function performSoftReset() {
@@ -226,7 +203,7 @@ async function performSoftReset() {
 }
 
 nextRoundBtn.addEventListener('click', async () => {
-    if (confirm("Start Next Round? Scores will be kept.")) {
+    if (confirm("Start Next Round?")) {
         await performSoftReset();
         location.reload();
     }
@@ -244,28 +221,21 @@ softResetBtn.addEventListener('click', async () => {
 // --------------------------------------------------
 playersList.addEventListener('click', (e) => {
     const target = e.target;
-    
     if (target.classList.contains('kickBtn')) {
         e.stopPropagation();
-        const pid = target.dataset.pid;
-        const name = target.dataset.name;
-        if(confirm(`Kick ${name}?`)) remove(ref(db, `room/players/${pid}`));
-        return;
+        playSound('click');
+        if(confirm("Kick player?")) remove(ref(db, `room/players/${target.dataset.pid}`));
     }
-
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
-        const pid = target.dataset.pid;
-        update(ref(db, `room/players/${pid}`), { role: "civilian", statusTags: "" });
-        return;
+        update(ref(db, `room/players/${target.dataset.pid}`), { role: "civilian", statusTags: "" });
     }
-
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
+        playSound('click');
         const role = target.dataset.role;
-        const name = target.dataset.name;
         document.getElementById("modalRole").src = `images/${role}.png`;
-        document.getElementById("modalName").innerText = name;
+        document.getElementById("modalName").innerText = target.dataset.name;
         document.getElementById("modalRoleText").innerText = `Role: ${role.toUpperCase()}`;
         document.getElementById("roleModal").style.display = "flex";
     }
@@ -278,25 +248,23 @@ window.onclick = function(event) {
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 
 shuffleBtn.addEventListener('click', async () => {
-    playSound('shuffle');
+    // Host triggers state change, Sound plays via onValue
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
+    
+    // INCREASED TO 4.5 SECONDS
     setTimeout(async () => {
         await set(ref(db, "room/isShuffling"), false);
         await set(ref(db, "room/hasShuffled"), true);
-    }, 3000);
+    }, 4500);
 });
 
 dealBtn.addEventListener('click', async () => {
-    // Use Shuffle sound because you don't have deal.mp3
-    playSound('shuffle'); 
-    
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
     let playersArr = Object.entries(snap.val());
-    // 1. Shuffle Players
-    playersArr = shuffleArray(playersArr); 
+    shuffleArray(playersArr);
 
     const count = playersArr.length;
     let roles = [];
@@ -315,18 +283,11 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
-    // 2. Shuffle Roles
-    roles = shuffleArray(roles);
+    shuffleArray(roles);
 
-    const updates = {};
     playersArr.forEach(([pid], i) => {
-        updates[`room/players/${pid}/role`] = roles[i];
-        updates[`room/players/${pid}/statusTags`] = "";
-        updates[`room/players/${pid}/vestUsed`] = false;
-        updates[`room/players/${pid}/vestActive`] = false;
+        update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
     });
-    await update(ref(db), updates);
-    
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
 });
@@ -343,7 +304,7 @@ dayBtn.addEventListener('click', async () => {
         const night = nightSnap.val() || {};
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val();
-        if (!players) throw new Error("No players found");
+        if (!players) throw new Error("No players");
 
         const mafiaVotesRaw = night.mafiaVotes || {};
         let voteCounts = {};
@@ -391,47 +352,13 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Saved by Doctor";
         }
 
-        let vestSaved = false;
         if (finalNightDeathId && players[finalNightDeathId] && players[finalNightDeathId].vestActive) {
-            vestSaved = true;
             finalNightDeathId = null;
             nightDeathReason = "Bulletproof Vest";
         }
 
-        // SOUND TRIGGERS
-        if (finalNightDeathId) {
-            if (nightDeathReason.includes("Mafia") || nightDeathReason.includes("Revenge") || nightDeathReason.includes("Ricochet")) {
-                 playSound('shotgun');
-            }
-            nrTitle.innerText = "TRAGEDY!";
-            nrIcon.innerText = "💀";
-            nrName.innerText = getName(finalNightDeathId);
-            nrDetail.innerText = nightDeathReason;
-            document.querySelector('.flip-card-back').className = "flip-card-back death";
-        } else if (wasSaved) {
-            nrTitle.innerText = "MIRACLE!";
-            nrIcon.innerText = "🛡️";
-            nrName.innerText = savedName;
-            nrDetail.innerText = "Saved by Doctor";
-            document.querySelector('.flip-card-back').className = "flip-card-back save";
-        } else if (vestSaved) {
-            nrTitle.innerText = "BULLETPROOF!";
-            nrIcon.innerText = "🦺";
-            nrName.innerText = "Civilian";
-            nrDetail.innerText = "Bullet Bounced Off!";
-            document.querySelector('.flip-card-back').className = "flip-card-back safe";
-        } else {
-            nrTitle.innerText = "PEACEFUL NIGHT";
-            nrIcon.innerText = "🌙";
-            nrName.innerText = "No One";
-            nrDetail.innerText = "Everyone Survived";
-            document.querySelector('.flip-card-back').className = "flip-card-back safe";
-        }
-
-        nrCardInner.classList.remove("flipped");
-        nightResultModal.classList.remove("hidden");
-        setTimeout(() => { nrCardInner.classList.add("flipped"); }, 100);
-
+        // HOST CALCULATES, BUT SAVES TO DB. 
+        // THE VISUALS HAPPEN IN ONVALUE FOR EVERYONE.
         const resetVests = {};
         Object.keys(players).forEach(pid => {
             resetVests[`room/players/${pid}/vestActive`] = false;
@@ -439,14 +366,19 @@ dayBtn.addEventListener('click', async () => {
         await update(ref(db), resetVests);
 
         await remove(ref(db, "room/night/chat"));
-        await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null });
+        
+        // Saving results triggers the UI/Sound for everyone
+        await set(ref(db, "room/pendingResults"), { 
+            nightDeathId: finalNightDeathId || null, 
+            reason: nightDeathReason,
+            savedName: savedName,
+            wasSaved: wasSaved 
+        });
+        
         await remove(ref(db, "room/votes")); 
         await set(ref(db, "room/gamePhase"), "day");
     
-    } catch (e) {
-        console.error(e);
-        alert("System Error: " + e.message); 
-    }
+    } catch (e) { console.error(e); }
 });
 
 nrCloseBtn.addEventListener('click', () => {
@@ -454,6 +386,7 @@ nrCloseBtn.addEventListener('click', () => {
 });
 
 endDayBtn.addEventListener('click', async () => {
+    playSound('click');
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
@@ -466,12 +399,9 @@ endDayBtn.addEventListener('click', async () => {
         const count = {};
         votes.forEach(v => { count[v] = (count[v] || 0) + 1; });
         let max = 0;
-        let tied = [];
         for (const pid in count) { 
-            if (count[pid] > max) { max = count[pid]; tied = [pid]; } 
-            else if (count[pid] === max) { tied.push(pid); }
+            if (count[pid] > max) { max = count[pid]; elimId = pid; } 
         }
-        if(tied.length > 0) elimId = tied[Math.floor(Math.random() * tied.length)];
     }
 
     if (elimId && elimId !== "SKIP" && players[elimId] && players[elimId].role === "jester") {
@@ -479,8 +409,7 @@ endDayBtn.addEventListener('click', async () => {
         let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.jester = (scores.jester || 0) + 1;
         await update(ref(db, "room/scoreboard"), scores);
-        playSound('mafiaWin'); 
-        await set(ref(db, "room/winMessage"), "🤡 JESTER WINS! (Chaos Reigns)");
+        await set(ref(db, "room/winMessage"), "🤡 JESTER WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         return; 
     }
@@ -528,6 +457,7 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 submitActionBtn.addEventListener('click', async () => {
+    playSound('click');
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
     const target = submitActionBtn.dataset.target;
@@ -548,6 +478,7 @@ submitActionBtn.addEventListener('click', async () => {
 });
 
 submitVoteBtn.addEventListener('click', async () => {
+    playSound('click');
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
@@ -560,7 +491,7 @@ onValue(ref(db, "room/publicReport"), (snap) => {
 });
 
 // --------------------------------------------------
-// 5. MAIN UI LOOP
+// 5. MAIN UI LOOP (NETWORKED SOUNDS HERE)
 // --------------------------------------------------
 onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
@@ -573,36 +504,71 @@ onValue(ref(db, "room"), (snap) => {
         return;
     }
 
-    // SCOREBOARD
-    const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
-    scoreTown.innerText = scores.town;
-    scoreMafia.innerText = scores.mafia;
-    if(scoreJester) scoreJester.innerText = scores.jester || 0;
-    scoreboard.classList.remove("hidden");
-
-    const playerCount = Object.keys(data.players || {}).length;
-    if (playerCount > 7) jesterContainer.classList.remove("hidden");
-    else jesterContainer.classList.add("hidden");
-
-    allPlayersCache = data.players || {};
-    const isHost = localStorage.getItem("isHost") === "true";
-    const myId = localStorage.getItem("playerId");
-    const phase = data.gamePhase || "Waiting";
+    // --- NETWORKED SOUND TRIGGERS ---
     
-    // PHASE CHANGE AUDIO
+    // 1. Shuffle Sound (State Changed from False -> True)
+    if (data.isShuffling === true && !wasShuffling) {
+        playSound('shuffle');
+    }
+    wasShuffling = data.isShuffling;
+
+    // 2. Deal Sound (State Changed from False -> True)
+    if (data.deckDealt === true && !wasDealt) {
+        playSound('deal');
+    }
+    wasDealt = data.deckDealt;
+
+    // 3. Phase Change Sounds (Night/Day)
+    const phase = data.gamePhase || "Waiting";
     if (phase !== lastPhase) {
         if (phase === "night") playSound('night');
-        if (phase === "day") playSound('day');
+        if (phase === "day") {
+            playSound('day');
+            
+            // TRIGGER NIGHT RESULT MODAL + SOUNDS FOR EVERYONE
+            const pending = data.pendingResults || {};
+            const nightDeathReason = pending.reason || "";
+            
+            // Logic to determine icon/sound
+            if (pending.nightDeathId) {
+                // Play Shotgun if killed by Mafia/Grandma
+                if (nightDeathReason.includes("Mafia") || nightDeathReason.includes("Revenge") || nightDeathReason.includes("Ricochet")) {
+                    playSound('shotgun');
+                }
+                nrTitle.innerText = "TRAGEDY!";
+                nrIcon.innerText = "💀";
+                nrName.innerText = getName(pending.nightDeathId);
+                nrDetail.innerText = nightDeathReason;
+                document.querySelector('.flip-card-back').className = "flip-card-back death";
+            } else if (pending.wasSaved) {
+                nrTitle.innerText = "MIRACLE!";
+                nrIcon.innerText = "🛡️";
+                nrName.innerText = pending.savedName;
+                nrDetail.innerText = "Saved by Doctor";
+                document.querySelector('.flip-card-back').className = "flip-card-back save";
+            } else {
+                nrTitle.innerText = "PEACEFUL NIGHT";
+                nrIcon.innerText = "🌙";
+                nrName.innerText = "No One";
+                nrDetail.innerText = "Everyone Survived";
+                document.querySelector('.flip-card-back').className = "flip-card-back safe";
+            }
+            
+            // Show Modal
+            nrCardInner.classList.remove("flipped");
+            nightResultModal.classList.remove("hidden");
+            setTimeout(() => { nrCardInner.classList.add("flipped"); }, 100);
+        }
         lastPhase = phase;
     }
 
+    // --- UI UPDATES ---
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
         document.getElementById("hostStatus").style.color = "#28a745";
     }
 
-    // THEME
     document.getElementById("phaseText").innerText = phase;
     if(phase === "night") {
         document.body.className = "night";
@@ -614,7 +580,6 @@ onValue(ref(db, "room"), (snap) => {
         document.body.className = "";
     }
 
-    // SCREEN ROUTING
     if (phase === "Lobby" || !data.host) {
         screenGame.classList.add("hidden");
         screenLobby.classList.remove("hidden");
@@ -622,14 +587,19 @@ onValue(ref(db, "room"), (snap) => {
         return;
     } else {
         screenLobby.classList.add("hidden");
-        if (isHost || (myId && myId !== "HOST")) screenGame.classList.remove("hidden");
+        if (localStorage.getItem("isHost") === "true" || (localStorage.getItem("playerId") && localStorage.getItem("playerId") !== "HOST")) {
+            screenGame.classList.remove("hidden");
+        }
     }
 
-    // GAME OVER
     if (phase === "GAME OVER") {
+        // Play Game Over Sound (Check winner string)
+        if (data.winMessage.includes("MAFIA") || data.winMessage.includes("JESTER")) playSound('mafiaWin');
+        else playSound('civWin');
+
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
-        if (isHost) {
+        if (localStorage.getItem("isHost") === "true") {
             nextRoundBtn.classList.remove("hidden");
             document.getElementById("waitingForHostText").classList.add("hidden");
         } else {
@@ -642,6 +612,11 @@ onValue(ref(db, "room"), (snap) => {
         gameOverModal.classList.add("hidden");
     }
 
+    // Render Cards, Buttons, Etc. (Same as before)
+    // ... (Kept brevity, ensure previous render logic is here)
+    const isHost = localStorage.getItem("isHost") === "true";
+    const myId = localStorage.getItem("playerId");
+    
     if(isHost) {
         hostControls.classList.remove("hidden");
         endDayBtn.classList.toggle("hidden", phase !== "day");
@@ -663,6 +638,16 @@ onValue(ref(db, "room"), (snap) => {
             dealBtn.style.opacity = canDeal ? "1" : "0.5";
         }
     }
+    
+    // Update Scores
+    const scoreData = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
+    scoreTown.innerText = scoreData.town;
+    scoreMafia.innerText = scoreData.mafia;
+    if(scoreJester) scoreJester.innerText = scoreData.jester || 0;
+    scoreboard.classList.remove("hidden");
+    const pCount = Object.keys(data.players || {}).length;
+    if (pCount > 7) jesterContainer.classList.remove("hidden");
+    else jesterContainer.classList.add("hidden");
 
     playersList.innerHTML = "";
     if (data.players) {
@@ -677,22 +662,18 @@ onValue(ref(db, "room"), (snap) => {
 
         Object.entries(data.players).forEach(([pid, p]) => {
             if (data.host && p.name === data.host.name) return;
-
             const isMe = pid === myId;
             const canSeeRole = isHost || isMe || (amIMafia && (p.role === "mafia" || p.role === "godfather"));
-            
             let cardHtml = `<div class="emptySlot">Wait</div>`;
             if (isDealt) {
                 const img = canSeeRole ? p.role : "back";
                 cardHtml = `<img src="images/${img}.png" onerror="this.src='https://via.placeholder.com/80?text=${img}'">`;
             }
-
             let statusHtml = "";
             if (p.statusTags) statusHtml = `<div style="background:red; color:white; font-weight:bold; font-size:12px; margin-top:5px; border-radius:4px;">${p.statusTags}</div>`;
 
             const div = document.createElement("div");
             div.classList.add("playerCard");
-            
             if(isHost) {
                 const kickBtn = document.createElement("button");
                 kickBtn.className = "kickBtn";
@@ -700,7 +681,6 @@ onValue(ref(db, "room"), (snap) => {
                 kickBtn.dataset.pid = pid;
                 kickBtn.dataset.name = p.name;
                 div.appendChild(kickBtn);
-
                 if(isDealt && !p.role && phase !== "night") {
                     const lateDealBtn = document.createElement("button");
                     lateDealBtn.className = "lateDealBtn";
@@ -709,7 +689,6 @@ onValue(ref(db, "room"), (snap) => {
                     div.appendChild(lateDealBtn);
                 }
             }
-
             if (isDealt && canSeeRole && p.role) {
                 const viewBtn = document.createElement("button");
                 viewBtn.className = "viewRoleBtn";
@@ -718,7 +697,6 @@ onValue(ref(db, "room"), (snap) => {
                 viewBtn.dataset.name = p.name;
                 div.appendChild(viewBtn);
             }
-
             div.innerHTML += `<h3>${p.name}</h3>${cardHtml}${statusHtml}`;
             playersList.appendChild(div);
 
@@ -730,18 +708,15 @@ onValue(ref(db, "room"), (snap) => {
                     if (myCurrentRole === "doctor" && nightData.doctorSave) alreadyVoted = true;
                     if (myCurrentRole === "detective" && nightData.detectiveAction && nightData.detectiveAction[myId]) alreadyVoted = true;
                     if (myCurrentRole === "civilian" && me.vestActive) alreadyVoted = true;
-
                     if (alreadyVoted) {
                         actionPanel.classList.remove("hidden");
                         actionPanel.innerHTML = "<h3>Night Action</h3><p>Action Submitted.</p>";
                     } else {
                         if(actionPanel.innerHTML.includes("Action Submitted")) actionPanel.innerHTML = `<h3>Night Action</h3><p id="actionInstruction">Select a target...</p><div id="actionTargets" class="targets"></div><button id="submitActionBtn" class="primary" disabled>Submit Action</button>`;
-                        
                         let canTarget = false;
                         if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) canTarget = true;
                         else if (myCurrentRole === "doctor") canTarget = true;
                         else if (myCurrentRole === "detective" && !isMe) canTarget = true;
-
                         if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
                             if(!document.getElementById("vestBtn")) {
                                 const vestBtn = document.createElement("button");
@@ -750,6 +725,7 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
+                                        playSound('click');
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
                                     }
                                 };
@@ -757,23 +733,19 @@ onValue(ref(db, "room"), (snap) => {
                                 actionPanel.classList.remove("hidden");
                             }
                         }
-
                         if (canTarget) {
                             createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
                             actionPanel.classList.remove("hidden");
                         }
                     }
                 }
-                
                 if (phase === "day" && !isMe) {
                     if (hasVotedDay) {
                         votingPanel.classList.remove("hidden");
                         votingPanel.innerHTML = "<h3>Day Vote</h3><p>Vote Submitted.</p>";
                     } else {
                         if(votingPanel.innerHTML.includes("Vote Submitted")) votingPanel.innerHTML = `<h3>Day Vote</h3><p id="voteInstruction">Who to eliminate?</p><div id="voteTargets" class="targets"></div><button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>`;
-                        
                         createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
-                        
                         const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
                         if(!skipExists) {
                             const skipBtn = document.createElement("button");
@@ -782,6 +754,7 @@ onValue(ref(db, "room"), (snap) => {
                             skipBtn.className = "skipBtn";
                             skipBtn.addEventListener('click', (e) => {
                                 e.preventDefault();
+                                playSound('click');
                                 Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
                                 skipBtn.classList.add("selected");
                                 submitVoteBtn.disabled = false;
@@ -800,6 +773,7 @@ onValue(ref(db, "room"), (snap) => {
     }
 });
 
+// ... (Helpers remain the same) ...
 function createBtn(container, name, pid, btn, datasetKey) {
     const existing = Array.from(container.children).find(c => c.dataset.pid === pid);
     if(existing) return;
@@ -808,6 +782,7 @@ function createBtn(container, name, pid, btn, datasetKey) {
     b.dataset.pid = pid;
     b.addEventListener('click', (e) => {
         e.preventDefault(); 
+        playSound('click');
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
         b.classList.add("selected");
         btn.disabled = false;
@@ -831,13 +806,11 @@ async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
     const p = Object.values(snap.val());
-    
     const activePlayers = p.filter(x => !x.statusTags);
     const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
-
     if (mafiaCount === 0 && activePlayers.length > 0) {
-        playSound('civWin');
+        // Sound handled by GAME OVER check in main loop
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         const scoreSnap = await get(ref(db, "room/scoreboard"));
@@ -846,7 +819,6 @@ async function checkWinCondition() {
         await update(ref(db, "room/scoreboard"), scores);
     } 
     else if (mafiaCount > townCount && activePlayers.length > 0) {
-        playSound('mafiaWin');
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         const scoreSnap = await get(ref(db, "room/scoreboard"));
