@@ -277,4 +277,45 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 1px solid #
     border-radius: 12px; display: flex; flex-direction: column; 
     z-index: 1500; backdrop-filter: blur(5px); 
 }
-/* ... (Rest of chat CSS stays same) ... */
+/* REPORT MODAL (Replaces Alert) */
+.report-wrapper {
+    background: #222;
+    border: 2px solid #fff;
+    box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
+    max-width: 400px;
+    text-align: left;
+}
+body.day .report-wrapper {
+    background: #fff;
+    border: 2px solid #333;
+    color: #000;
+}
+
+#reportTitle {
+    text-align: center;
+    font-family: 'Segoe UI', sans-serif;
+    font-weight: 900;
+    letter-spacing: 2px;
+    border-bottom: 1px solid #555;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    font-size: 24px;
+    text-transform: uppercase;
+}
+
+.report-text {
+    font-size: 16px;
+    line-height: 1.6;
+    white-space: pre-line; /* Allows line breaks \n */
+    margin-bottom: 20px;
+}
+
+/* Animation for appearing */
+#reportModal:not(.hidden) {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
