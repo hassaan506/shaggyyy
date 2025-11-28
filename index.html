@@ -3,22 +3,18 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-    <title>Mafia Wars by Dr Shaggyyy</title>
+    <title>Mafia Wars</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=12.0">
+    <link rel="stylesheet" href="style.css?v=15.0">
 </head>
 <body class="">
 
-    <div id="skyContainer">
-        <div class="sun"></div>
-        <div class="moon"></div>
-    </div>
+    <div id="skyContainer"><div class="sun"></div><div class="moon"></div></div>
 
     <div id="scoreboard" class="scoreboard hidden">
         <span class="townScore">Town: <b id="scoreTown">0</b></span>
         <span class="vs">|</span>
         <span class="mafiaScore">Mafia: <b id="scoreMafia">0</b></span>
-        
         <span id="jesterContainer" class="hidden">
             <span class="vs">|</span>
             <span class="jesterScore">Jester: <b id="scoreJester">0</b></span>
@@ -41,9 +37,8 @@
             <p>Waiting for a Host...</p>
             <hr style="border-color: #444; opacity: 0.3; margin: 20px 0;">
             <div id="lobbyControls">
-                <p style="font-size: 14px; opacity: 0.8; margin: 0;">Is this your game room?</p>
                 <button id="claimHostBtn">👑 I will be Host</button>
-                <p>Players, please wait for the Host to start.</p>
+                <p>Players, wait for the Host to start.</p>
             </div>
         </div>
     </div>
@@ -52,11 +47,8 @@
         <div class="topBar">
             <div class="hostSection">
                 <h2 id="hostStatus">Waiting...</h2>
-                <div id="hostCard" class="hostCard">
-                    <h3 id="hostName">Host</h3>
-                </div>
+                <div id="hostCard" class="hostCard"><h3 id="hostName">Host</h3></div>
             </div>
-
             <div id="hostControls" class="hidden">
                 <div class="btnGroup">
                     <button id="shuffleBtn">🔀 Shuffle</button>
@@ -87,20 +79,15 @@
 
         <div class="gameContainer">
             <div id="playersList" class="players"></div>
-
             <div class="rightPanel">
                 <div id="phaseBanner" class="phaseBanner">Phase: <span id="phaseText">Waiting</span></div>
-
                 <div id="actionPanel" class="panel hidden">
                     <h3>Night Action</h3>
-                    <p id="actionInstruction">Select a target...</p>
                     <div id="actionTargets" class="targets"></div>
                     <button id="submitActionBtn" class="primary" disabled>Submit Action</button>
                 </div>
-
                 <div id="votingPanel" class="panel hidden">
                     <h3>Day Vote</h3>
-                    <p id="voteInstruction">Who to eliminate?</p>
                     <div id="voteTargets" class="targets"></div>
                     <button id="submitVoteBtn" class="primary" disabled>Submit Vote</button>
                 </div>
@@ -112,7 +99,7 @@
         <div class="chatHeader">🕵️ Mafia Family Chat</div>
         <div id="chatHistory"></div>
         <div class="chatInputWrapper">
-            <input type="text" id="chatInput" placeholder="Whisper plan..." maxlength="30">
+            <input type="text" id="chatInput" placeholder="Whisper..." maxlength="30">
             <button id="sendChatBtn">➤</button>
         </div>
     </div>
@@ -126,20 +113,28 @@
                     <div class="flip-card-back">
                         <div id="nrIcon" class="result-icon">💀</div>
                         <h3 id="nrName">Player Name</h3>
-                        <p id="nrDetail">Killed by Mafia</p>
+                        <p id="nrDetail">Result</p>
                     </div>
                 </div>
             </div>
-            <button id="nrCloseBtn" class="primary">Continue to Day</button>
+            <button id="nrCloseBtn" class="primary">Continue</button>
+        </div>
+    </div>
+
+    <div id="reportModal" class="hidden">
+        <div class="modalContent report-wrapper">
+            <h2 id="reportTitle">REPORT</h2>
+            <div id="reportText" class="report-text"></div>
+            <button id="reportBtn" class="primary">PROCEED</button>
         </div>
     </div>
 
     <div id="gameOverModal" class="hidden">
         <div class="modalContent">
             <h1 id="winMessage">GAME OVER</h1>
-            <button id="nextRoundBtn" class="hidden" style="background: #28a745; color: white; width: 100%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; cursor: pointer; margin-bottom: 10px;">🔄 Start Next Round</button>
-            <p id="waitingForHostText" class="hidden">Waiting for Host to restart...</p>
-            <button id="modalExitBtn" style="background: #333; color: white; width: 100%; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #555; cursor: pointer;">🚪 Leave Room</button>
+            <button id="nextRoundBtn" class="hidden" style="background:#28a745; color:white; width:100%; padding:15px; margin-bottom:10px;">🔄 Start Next Round</button>
+            <p id="waitingForHostText" class="hidden">Waiting for Host...</p>
+            <button id="modalExitBtn" style="background:#333; color:white; width:100%;">🚪 Leave Room</button>
         </div>
     </div>
 
@@ -148,17 +143,20 @@
             <h2 id="modalName">Player</h2>
             <img id="modalRole" src="" alt="Role" />
             <p id="modalRoleText"></p>
-            <button class="closeModal" onclick="closeModal()" style="margin-top:15px; padding:8px 20px; background:#333; color:white; border:none; border-radius:5px; cursor:pointer;">Close</button>
-        </div>
-    </div>
-<div id="reportModal" class="hidden">
-        <div class="modalContent report-wrapper">
-            <h2 id="reportTitle">REPORT</h2>
-            <div id="reportText" class="report-text"></div>
-            <button id="reportBtn" class="primary">PROCEED</button>
+            <button class="closeModal" onclick="document.getElementById('roleModal').style.display='none'">Close</button>
         </div>
     </div>
 
-    <script type="module" src="main.js?v=13.0"></script>
+    <div id="audioContainer" style="display:none;">
+        <audio id="snd_shuffle" src="sound/shuffle.mp3" preload="auto"></audio>
+        <audio id="snd_deal" src="sound/deal.mp3" preload="auto"></audio>
+        <audio id="snd_wolf" src="sound/wolf.mp3" preload="auto"></audio>
+        <audio id="snd_rooster" src="sound/rooster.mp3" preload="auto"></audio>
+        <audio id="snd_win" src="sound/win.mp3" preload="auto"></audio>
+        <audio id="snd_victory" src="sound/victory.mp3" preload="auto"></audio>
+        <audio id="snd_shotgun" src="sound/shotgun.mp3" preload="auto"></audio>
+    </div>
+
+    <script type="module" src="main.js?v=15.0"></script>
 </body>
 </html>
