@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getDatabase, ref, set, get, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-database.js";
 
-// --- CONFIGURATION ---
 const firebaseConfig = {
     apiKey: "AIzaSyCflm17U7JTwkEMHjfyp4G5UU29KQzVs4I",
     authDomain: "mafia-wars-online.firebaseapp.com",
@@ -18,33 +17,24 @@ try {
     db = getDatabase(app);
 } catch (e) { console.error(e); }
 
-// --- SOUND ENGINE ---
-const sounds = {
-    shuffle: new Audio('sound/shuffle.mp3'),
-    deal: new Audio('sound/deal.mp3'),       
-    night: new Audio('sound/wolf.mp3'),
-    day: new Audio('sound/rooster.mp3'),
-    mafiaWin: new Audio('sound/win.mp3'),    
-    civWin: new Audio('sound/victory.mp3'),  
-    shotgun: new Audio('sound/shotgun.mp3')  
-};
-
-document.addEventListener('click', () => {
-    Object.values(sounds).forEach(s => { if(s.readyState === 0) s.load(); });
-}, { once: true });
-
-function playSound(name) {
-    try {
-        if(sounds[name]) {
-            sounds[name].currentTime = 0;
-            sounds[name].volume = 0.7; 
-            let p = sounds[name].play();
-            if (p !== undefined) p.catch(e => {});
-        }
-    } catch(e) { console.log(e); }
+// --- SOUND SYSTEM (HTML TAG METHOD) ---
+function playSound(id) {
+    const el = document.getElementById("snd_" + id);
+    if(el) {
+        el.currentTime = 0;
+        el.play().catch(() => console.log("Audio Blocked"));
+    }
 }
 
-// --- DOM ELEMENTS ---
+// UNLOCK AUDIO ON FIRST CLICK
+document.addEventListener('click', () => {
+    ["shuffle","deal","wolf","rooster","win","victory","shotgun"].forEach(id => {
+        const el = document.getElementById("snd_" + id);
+        if(el) { el.muted = true; el.play().catch(()=>{}); el.pause(); el.currentTime=0; el.muted=false; }
+    });
+}, { once: true });
+
+// --- DOM ---
 const screenJoin = document.getElementById("screenJoin");
 const screenLobby = document.getElementById("screenLobby");
 const screenGame = document.getElementById("screenGame");
@@ -55,7 +45,6 @@ const joinStatus = document.getElementById("joinStatus");
 
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
-const hostFeed = document.getElementById("hostFeed");
 const liveVoteList = document.getElementById("liveVoteList");
 
 const scoreboard = document.getElementById("scoreboard");
@@ -89,7 +78,6 @@ const nrDetail = document.getElementById("nrDetail");
 const nrTitle = document.getElementById("nrTitle");
 const nrCloseBtn = document.getElementById("nrCloseBtn");
 
-// REPORT MODAL ELEMENTS
 const reportModal = document.getElementById("reportModal");
 const reportTitle = document.getElementById("reportTitle");
 const reportText = document.getElementById("reportText");
@@ -118,19 +106,15 @@ function shuffleArray(array) {
     return array;
 }
 
-// CUSTOM MODAL FUNCTION (Replaces Alert)
-function showReport(title, message, callback = null) {
+function showReport(title, msg, callback) {
     reportTitle.innerText = title;
-    reportText.innerText = message;
+    reportText.innerText = msg;
     reportModal.classList.remove("hidden");
-    
-    // Clear previous listeners
     const newBtn = reportBtn.cloneNode(true);
     reportBtn.parentNode.replaceChild(newBtn, reportBtn);
-    
     newBtn.addEventListener('click', () => {
         reportModal.classList.add("hidden");
-        if (callback) callback();
+        if(callback) callback();
     });
 }
 
@@ -144,9 +128,8 @@ if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
 }
 
 firstJoinBtn.addEventListener('click', async () => {
-    playSound('click'); // Fake click sound since file missing, just ensuring flow
     const name = playerNameInput.value.trim();
-    if (!name) { joinStatus.innerText = "Please enter a name."; return; }
+    if (!name) return;
     firstJoinBtn.disabled = true;
     firstJoinBtn.innerText = "Joining...";
     
@@ -158,7 +141,6 @@ firstJoinBtn.addEventListener('click', async () => {
         await set(refP, { name, role: null, statusTags: "" });
         screenJoin.classList.add("hidden");
     } catch (e) {
-        joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
     }
 });
@@ -181,37 +163,34 @@ claimHostBtn.addEventListener('click', async () => {
     location.reload();
 });
 
-// AUTO-KICK PROTECTION
+// AUTO-KICK
 onValue(ref(db, "room/players"), (snap) => {
     const players = snap.val();
     const myId = localStorage.getItem("playerId");
     const isHost = localStorage.getItem("isHost") === "true";
-
     if (myId && myId !== "HOST" && !isHost && (!players || !players[myId])) {
         localStorage.clear();
         location.reload();
     }
 });
 
+// SOFT RESET
 async function performSoftReset() {
     const playersSnap = await get(ref(db, "room/players"));
     const players = playersSnap.val() || {};
     const updates = {};
-    
     Object.keys(players).forEach(pid => {
         updates[`room/players/${pid}/role`] = null;
         updates[`room/players/${pid}/statusTags`] = "";
         updates[`room/players/${pid}/vestUsed`] = false;
         updates[`room/players/${pid}/vestActive`] = false;
     });
-
     const myName = localStorage.getItem("name");
     if (myName) {
         const newRef = push(ref(db, "room/players"));
         updates[`room/players/${newRef.key}`] = { name: myName, role: null, statusTags: "" };
         localStorage.setItem("playerId", newRef.key);
     }
-
     updates["room/night"] = null;
     updates["room/votes"] = null;
     updates["room/pendingResults"] = null;
@@ -222,7 +201,6 @@ async function performSoftReset() {
     updates["room/hasShuffled"] = false;
     updates["room/gamePhase"] = "Lobby";
     updates["room/host"] = null;
-
     await update(ref(db), updates);
     localStorage.setItem("isHost", "false");
 }
@@ -242,7 +220,7 @@ softResetBtn.addEventListener('click', async () => {
 });
 
 // --------------------------------------------------
-// 3. HOST CONTROLS
+// 3. HOST CONTROLS & DELEGATION
 // --------------------------------------------------
 playersList.addEventListener('click', (e) => {
     const target = e.target;
@@ -272,17 +250,15 @@ window.onclick = function(event) {
 window.closeModal = () => document.getElementById("roleModal").style.display = "none";
 
 shuffleBtn.addEventListener('click', async () => {
-    playSound('shuffle');
     await set(ref(db, "room/isShuffling"), true);
     await set(ref(db, "room/hasShuffled"), false);
     setTimeout(async () => {
         await set(ref(db, "room/isShuffling"), false);
         await set(ref(db, "room/hasShuffled"), true);
-    }, 3000);
+    }, 4500);
 });
 
 dealBtn.addEventListener('click', async () => {
-    playSound('deal'); // Uses shuffle sound
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
@@ -302,7 +278,6 @@ dealBtn.addEventListener('click', async () => {
     roles.push("detective");
     if (count > 5) roles.push("grandma");
     if (count > 7) roles.push("jester");
-    
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
@@ -322,6 +297,7 @@ nightBtn.addEventListener('click', () => {
 });
 
 dayBtn.addEventListener('click', async () => {
+    // Replaces Alert with Report Modal
     try {
         const nightSnap = await get(ref(db, "room/night"));
         const night = nightSnap.val() || {};
@@ -382,20 +358,16 @@ dayBtn.addEventListener('click', async () => {
             nightDeathReason = "Bulletproof Vest";
         }
 
-        // CONSTRUCT REPORT MESSAGE
         let reportMsg = "";
         if (finalNightDeathId) reportMsg = `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
         else if (wasSaved) reportMsg = `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
         else if (vestSaved) reportMsg = `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
         else reportMsg = `🛡️ No one died tonight.`;
 
-        // USE NEW MODAL INSTEAD OF ALERT
+        // SHOW REPORT MODAL (Wait for Host to click Proceed)
         showReport("🌙 NIGHT RESULTS (HIDDEN)", reportMsg, async () => {
-            // Proceed only after Host clicks OK
             const resetVests = {};
-            Object.keys(players).forEach(pid => {
-                resetVests[`room/players/${pid}/vestActive`] = false;
-            });
+            Object.keys(players).forEach(pid => { resetVests[`room/players/${pid}/vestActive`] = false; });
             await update(ref(db), resetVests);
             await remove(ref(db, "room/night/chat"));
             await set(ref(db, "room/pendingResults"), { nightDeathId: finalNightDeathId || null, reason: nightDeathReason, savedName: savedName, wasSaved: wasSaved });
@@ -433,25 +405,25 @@ endDayBtn.addEventListener('click', async () => {
         let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.jester = (scores.jester || 0) + 1;
         await update(ref(db, "room/scoreboard"), scores);
-        playSound('mafiaWin'); 
         await set(ref(db, "room/winMessage"), "🤡 JESTER WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         return; 
     }
 
     let report = "";
-    if (pending.nightDeathId) {
-        await pushTag(pending.nightDeathId, "KILLED");
-        report += `💀 Night Casualty: ${getName(pending.nightDeathId)}\n`;
-    }
+    if (pending.nightDeathId) report += `💀 Night Casualty: ${getName(pending.nightDeathId)}\n`;
+    else report += `🛡️ Night: No casualties.\n`;
+
     if (elimId && elimId !== "SKIP") {
         await pushTag(elimId, "ELIMINATED");
         report += `⚖️ Voted Out: ${getName(elimId)}\n`;
     } else if (elimId === "SKIP") {
         report += `💤 Town voted to SKIP.\n`;
+    } else {
+        report += `⚖️ Day: No majority/votes.\n`;
     }
     
-    await set(ref(db, "room/publicReport"), report); // Triggers generic report for all
+    await set(ref(db, "room/publicReport"), report);
     await checkWinCondition();
 });
 
@@ -495,7 +467,7 @@ submitActionBtn.addEventListener('click', async () => {
         const tSnap = await get(ref(db, `room/players/${target}/role`));
         const tRole = tSnap.val();
         const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
-        alert(`Investigation Result:\n${getName(target)} is ${isBad}`);
+        showReport("INVESTIGATION", `${getName(target)} is ${isBad}`);
     }
     submitActionBtn.innerText = "Submitted";
     submitActionBtn.disabled = true;
@@ -509,7 +481,6 @@ submitVoteBtn.addEventListener('click', async () => {
     await set(ref(db, `room/votes/${pid}`), target);
 });
 
-// NEW: GENERIC REPORT LISTENER
 onValue(ref(db, "room/publicReport"), (snap) => {
     const msg = snap.val();
     if (msg) showReport("📢 DAILY NEWS", msg);
@@ -529,6 +500,7 @@ onValue(ref(db, "room"), (snap) => {
         return;
     }
 
+    // SCOREBOARD & JESTER TOGGLE
     const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
     scoreTown.innerText = scores.town;
     scoreMafia.innerText = scores.mafia;
@@ -544,6 +516,7 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
+    // SOUNDS
     if (phase !== lastPhase) {
         if (phase === "night") playSound('night');
         if (phase === "day") {
@@ -577,6 +550,9 @@ onValue(ref(db, "room"), (snap) => {
         lastPhase = phase;
     }
 
+    if (data.isShuffling) playSound('shuffle');
+    if (data.deckDealt && !allPlayersCache[myId]?.role) playSound('deal'); 
+
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
         document.getElementById("hostStatus").innerText = "Host Online";
@@ -605,6 +581,9 @@ onValue(ref(db, "room"), (snap) => {
     }
 
     if (phase === "GAME OVER") {
+        if(data.winMessage.includes("MAFIA") || data.winMessage.includes("JESTER")) playSound('mafiaWin');
+        else playSound('civWin');
+
         gameOverModal.classList.remove("hidden");
         document.getElementById("winMessage").innerText = data.winMessage || "GAME OVER";
         if (isHost) {
@@ -815,7 +794,6 @@ async function checkWinCondition() {
     const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
     if (mafiaCount === 0 && activePlayers.length > 0) {
-        playSound('civWin');
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         const scoreSnap = await get(ref(db, "room/scoreboard"));
@@ -824,7 +802,6 @@ async function checkWinCondition() {
         await update(ref(db, "room/scoreboard"), scores);
     } 
     else if (mafiaCount > townCount && activePlayers.length > 0) {
-        playSound('mafiaWin');
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
         const scoreSnap = await get(ref(db, "room/scoreboard"));
