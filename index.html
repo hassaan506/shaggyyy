@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>Mafia Wars</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=15.0">
+    <link rel="stylesheet" href="style.css?v=16.0">
 </head>
 <body class="">
 
@@ -138,12 +138,12 @@
         </div>
     </div>
 
-    <div id="roleModal">
+    <div id="roleModal" class="hidden">
         <div class="modalContent">
             <h2 id="modalName">Player</h2>
             <img id="modalRole" src="" alt="Role" />
             <p id="modalRoleText"></p>
-            <button class="closeModal" onclick="document.getElementById('roleModal').style.display='none'">Close</button>
+            <button class="closeModal" onclick="document.getElementById('roleModal').classList.add('hidden')">Close</button>
         </div>
     </div>
 
@@ -156,7 +156,6 @@
         <audio id="snd_shotgun" src="sound/shotgun.mp3" preload="auto"></audio>
     </div>
 
-    <script type="module" src="main.js?v=15.0"></script>
+    <script type="module" src="main.js?v=16.0"></script>
 </body>
 </html>
-
