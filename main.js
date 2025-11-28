@@ -21,15 +21,16 @@ try {
 // --- SOUND ENGINE ---
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
-    deal: new Audio('sound/deal.mp3'),       
+    deal: new Audio('sound/deal.mp3'),        
     night: new Audio('sound/wolf.mp3'),
     day: new Audio('sound/rooster.mp3'),
-    mafiaWin: new Audio('sound/win.mp3'),    
-    civWin: new Audio('sound/victory.mp3'),  
-    shotgun: new Audio('sound/shotgun.mp3')  
+    mafiaWin: new Audio('sound/win.mp3'),     
+    civWin: new Audio('sound/victory.mp3'),   
+    shotgun: new Audio('sound/shotgun.mp3'),
+    click: new Audio('sound/shuffle.mp3') // Fallback click sound
 };
 
-// Global Unlocker
+// Global Unlocker for Mobile
 document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
         if(s.readyState === 0) s.load();
@@ -42,7 +43,7 @@ function playSound(name) {
             sounds[name].currentTime = 0;
             sounds[name].volume = 0.7; 
             let p = sounds[name].play();
-            if (p !== undefined) p.catch(e => {});
+            if (p !== undefined) p.catch(e => { /* Ignore auto-play errors */ });
         }
     } catch(e) { console.log("Sound error", e); }
 }
@@ -121,6 +122,14 @@ function shuffleArray(array) {
     return array;
 }
 
+// FIX: Helper function to safely get player name (Was causing crash)
+function getName(pid) {
+    if (allPlayersCache && allPlayersCache[pid]) {
+        return allPlayersCache[pid].name;
+    }
+    return "Unknown Player";
+}
+
 function showReport(title, msg, callback) {
     reportTitle.innerText = title;
     reportText.innerText = msg;
@@ -143,6 +152,17 @@ if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
 }
 
 firstJoinBtn.addEventListener('click', async () => {
+    // FIX: MOBILE AUDIO UNLOCK
+    // Trigger every sound muted for a split second to unlock audio context on iOS/Android
+    Object.values(sounds).forEach(s => {
+        s.muted = true;
+        s.play().then(() => {
+            s.pause();
+            s.currentTime = 0;
+            s.muted = false;
+        }).catch(() => {});
+    });
+
     playSound('click'); 
     const name = playerNameInput.value.trim();
     if (!name) { joinStatus.innerText = "Please enter a name."; return; }
@@ -284,15 +304,16 @@ playersList.addEventListener('click', (e) => {
         document.getElementById("modalRole").src = `images/${role}.png`;
         document.getElementById("modalName").innerText = target.dataset.name;
         document.getElementById("modalRoleText").innerText = `Role: ${role.toUpperCase()}`;
-        document.getElementById("roleModal").style.display = "flex";
+        // FIX: Remove 'hidden' class to show modal
+        document.getElementById("roleModal").classList.remove("hidden");
     }
 });
 
 window.onclick = function(event) {
-    if (event.target == roleModal) roleModal.style.display = "none";
+    if (event.target == roleModal) roleModal.classList.add("hidden");
     if (event.target == nightResultModal) nightResultModal.classList.add("hidden");
 }
-window.closeModal = () => document.getElementById("roleModal").style.display = "none";
+// window.closeModal removed, handled inline in HTML
 
 shuffleBtn.addEventListener('click', async () => {
     playSound('shuffle');
@@ -305,7 +326,7 @@ shuffleBtn.addEventListener('click', async () => {
 });
 
 dealBtn.addEventListener('click', async () => {
-    playSound('shuffle'); // Using Shuffle sound as Deal sound replacement
+    playSound('shuffle'); 
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
@@ -392,6 +413,7 @@ dayBtn.addEventListener('click', async () => {
         let savedName = "Unknown";
         if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
             wasSaved = true;
+            // FIX: getName call now works
             savedName = getName(finalNightDeathId);
             finalNightDeathId = null; 
             nightDeathReason = "Saved by Doctor";
@@ -405,6 +427,7 @@ dayBtn.addEventListener('click', async () => {
         }
 
         let reportMsg = "";
+        // FIX: getName call now works
         if (finalNightDeathId) reportMsg = `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
         else if (wasSaved) reportMsg = `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
         else if (vestSaved) reportMsg = `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
@@ -838,26 +861,39 @@ async function pushTag(pid, tag) {
     }
 }
 
+// FIX: Corrected Win Logic (Town = All Good Guys)
 async function checkWinCondition() {
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return;
     const p = Object.values(snap.val());
     
+    // 1. Get active players
     const activePlayers = p.filter(x => !x.statusTags);
-    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
-    const townCount = activePlayers.filter(x => x.role === "civilian" || x.role === "grandma").length;
 
+    // 2. Count Bad Guys
+    const mafiaCount = activePlayers.filter(x => x.role === "mafia" || x.role === "godfather").length;
+    
+    // 3. Count Good Guys (Town + Grandma + Doc + Det) - anyone NOT mafia/jester
+    const townCount = activePlayers.filter(x => 
+        x.role !== "mafia" && 
+        x.role !== "godfather" && 
+        x.role !== "jester"
+    ).length;
+
+    // 4. Check Winners
     if (mafiaCount === 0 && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "CIVILIANS WIN!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
+        
         const scoreSnap = await get(ref(db, "room/scoreboard"));
         let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.town++;
         await update(ref(db, "room/scoreboard"), scores);
     } 
-    else if (mafiaCount > townCount && activePlayers.length > 0) {
+    else if (mafiaCount >= townCount && activePlayers.length > 0) {
         await set(ref(db, "room/winMessage"), "MAFIA WINS!");
         await set(ref(db, "room/gamePhase"), "GAME OVER");
+        
         const scoreSnap = await get(ref(db, "room/scoreboard"));
         let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
         scores.mafia++;
@@ -873,6 +909,4 @@ hardResetBtn.addEventListener('click', async () => {
     }
 });
 
-exitBtn.addEventListener('click', () => {
-    if(confirm("Exit?")) { localStorage.clear(); location.reload(); }
-});
+// Removed the crash-inducing exitBtn code from here
