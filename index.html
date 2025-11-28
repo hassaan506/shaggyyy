@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>Mafia Wars</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=16.0">
+    <link rel="stylesheet" href="style.css?v=18.0">
 </head>
 <body class="">
 
@@ -143,12 +143,13 @@
             <h2 id="modalName">Player</h2>
             <img id="modalRole" src="" alt="Role" />
             <p id="modalRoleText"></p>
-            <button class="closeModal" onclick="document.getElementById('roleModal').classList.add('hidden')">Close</button>
+            <button id="closeRoleBtn" class="closeModal" style="margin-top:10px; width:100%; padding:10px; background:#333; color:fff;">Close</button>
         </div>
     </div>
 
     <div id="audioContainer" style="display:none;">
         <audio id="snd_shuffle" src="sound/shuffle.mp3" preload="auto"></audio>
+        <audio id="snd_deal" src="sound/deal.mp3" preload="auto"></audio>
         <audio id="snd_wolf" src="sound/wolf.mp3" preload="auto"></audio>
         <audio id="snd_rooster" src="sound/rooster.mp3" preload="auto"></audio>
         <audio id="snd_win" src="sound/win.mp3" preload="auto"></audio>
@@ -156,6 +157,6 @@
         <audio id="snd_shotgun" src="sound/shotgun.mp3" preload="auto"></audio>
     </div>
 
-    <script type="module" src="main.js?v=16.0"></script>
+    <script type="module" src="main.js?v=18.0"></script>
 </body>
 </html>
