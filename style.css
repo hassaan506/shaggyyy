@@ -1,11 +1,15 @@
 /* ---------------------------------------------
-    STYLE.CSS v16.0 (Fixed)
+    STYLE.CSS v17.0 (Fixed High Contrast)
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
 body { min-height: 100vh; padding-top: 60px; transition: background 1s, color 1s; background-color: #1a1a1a; color: #ddd; overflow-x: hidden; user-select: none; -webkit-user-select: none; }
 img { pointer-events: none; user-select: none; }
 button { touch-action: manipulation; outline: none; } 
+
+/* UTILITY CLASSES */
 .hidden { display: none !important; }
+.flex-visible { display: flex !important; } /* Force show for Modals */
+
 .screen { width: 100%; min-height: 90vh; display: flex; flex-direction: column; align-items: center; padding: 15px; }
 
 /* SKY */
@@ -62,10 +66,13 @@ body.night .playerCard { background: #050510; border: 1px solid #1c1c4f; color: 
 body.day .panel { background: #fff; border: 1px solid #eee; }
 body.night .panel { background: #0a0a12; border: 1px solid #1c1c4f; }
 
-.targets button { padding: 12px; border-radius: 8px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 8px; font-weight: 500; }
+/* VOTING & TARGETS (High Contrast Fix) */
+.targets button { padding: 15px; border-radius: 8px; cursor: pointer; text-align: left; width: 100%; margin-bottom: 8px; font-weight: bold; font-size: 16px; }
+/* Day Mode Targets */
 body.day .targets button { background: #f0f2f5; color: #333; border: 1px solid #ddd; }
-body.night .targets button { background: #151520; color: #aaccff; border: 1px solid #333; }
-.targets button.selected { background: #d32f2f !important; color: white !important; border: none; }
+/* Night Mode Targets - FORCE WHITE BG FOR VISIBILITY */
+body.night .targets button { background: #ffffff !important; color: #000000 !important; border: 2px solid #666; }
+.targets button.selected { background: #d32f2f !important; color: white !important; border: 2px solid #fff; }
 
 .vestBtn { width: 100%; padding: 15px; background: #4a90e2; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
 .skipBtn { background: #6c757d !important; border: 1px solid #555 !important; color: #fff !important; border-radius: 20px !important; }
@@ -74,6 +81,16 @@ body.night .targets button { background: #151520; color: #aaccff; border: 1px so
 .townScore { color: #4dabf7; font-weight: bold; font-size: 20px; }
 .mafiaScore { color: #e03131; font-weight: bold; font-size: 20px; }
 .jesterScore { color: #d63384; font-weight: bold; font-size: 20px; }
+
+/* MAFIA CHAT (Resized) */
+#mafiaChat { position: fixed; bottom: 20px; left: 20px; width: 300px; height: 35vh; background: rgba(0,0,0,0.9); border: 2px solid #d32f2f; border-radius: 10px; display: flex; flex-direction: column; z-index: 1500; }
+.chatHeader { padding: 10px; background: #d32f2f; color: white; font-weight: bold; text-align: center; }
+#chatHistory { flex: 1; overflow-y: auto; padding: 10px; color: white; font-size: 14px; }
+.chatMsg { margin-bottom: 5px; }
+.chatMsg b { color: #ff6b6b; margin-right: 5px; }
+.chatInputWrapper { display: flex; padding: 5px; border-top: 1px solid #555; }
+#chatInput { flex: 1; padding: 8px; border-radius: 4px; border: none; margin-right: 5px; }
+#sendChatBtn { padding: 8px 12px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; }
 
 /* MODALS */
 #roleModal, #gameOverModal, #nightResultModal, #reportModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
@@ -111,13 +128,11 @@ body.night .modalContent { background: #1a1a2a; color: #fff; border: 2px solid #
 /* FIX FOR ROLE REVEAL IMAGE SIZE */
 #roleModal img {
     max-width: 100%;
-    max-height: 60vh; /* Limits height to 60% of screen */
+    max-height: 50vh; 
     width: auto;
     object-fit: contain;
     margin: 10px auto;
     display: block;
 }
-/* Helper for displaying hidden things without !important conflict */
-.flex-visible { display: flex !important; }
 
 @media (max-width: 768px) { .gameContainer { grid-template-columns: 1fr; } .rightPanel { order: -1; } }
