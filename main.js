@@ -18,8 +18,7 @@ try {
     db = getDatabase(app);
 } catch (e) { console.error(e); }
 
-// --- SOUND ENGINE ---
-// REMOVED 'click' entirely to ensure silence on buttons.
+// --- SOUND ENGINE (STRICT RULES) ---
 const sounds = {
     shuffle: new Audio('sound/shuffle.mp3'),
     deal: new Audio('sound/deal.mp3'),          
@@ -30,7 +29,7 @@ const sounds = {
     shotgun: new Audio('sound/shotgun.mp3')
 };
 
-// Global Unlocker for Mobile (Silent Load)
+// Silent Unlock
 document.addEventListener('click', () => {
     Object.values(sounds).forEach(s => {
         if(s.readyState === 0) s.load();
@@ -46,7 +45,7 @@ function playSound(name) {
             let p = sounds[name].play();
             if (p !== undefined) p.catch(e => { /* Ignore auto-play errors */ });
         }
-    } catch(e) { /* Ignore */ }
+    } catch(e) { }
 }
 
 // --- UTILS ---
@@ -76,15 +75,10 @@ function createBtn(parent, text, pid, mainBtn, dataAttr) {
      btn.dataset.pid = pid;
      btn.addEventListener('click', (e) => {
          e.preventDefault();
-         // SILENT - No sound played here
-         
-         // Deselect all siblings
+         // SILENT CLICK
          Array.from(parent.children).forEach(c => c.classList.remove("selected"));
-         // Select this
          btn.classList.add("selected");
-         // Enable main button
          mainBtn.disabled = false;
-         // Set data on main button
          if(dataAttr === 'vote') mainBtn.dataset.vote = pid;
          if(dataAttr === 'target') mainBtn.dataset.target = pid;
      });
@@ -179,13 +173,7 @@ let isFirstLoad = true;
 claimHostBtn.addEventListener('click', async () => {
     const myName = localStorage.getItem("name");
     const pid = localStorage.getItem("playerId");
-    
-    // Fix: If no name found (user got here via reset), reload to force Join Screen
-    if(!myName || !pid) {
-        localStorage.clear();
-        location.reload();
-        return;
-    }
+    if(!myName || !pid) return alert("Please join with a name first.");
     
     if(confirm("Claim Host status? This controls the game flow.")) {
         await set(ref(db, "room/host"), { name: myName, id: pid });
@@ -196,9 +184,9 @@ claimHostBtn.addEventListener('click', async () => {
 
 hardResetBtn.addEventListener('click', async () => {
     if (confirm("HARD RESET? This kicks everyone.")) {
-        // Removing the entire room node ensures 'data' becomes null for everyone
         await remove(ref(db, "room"));
-        // The listener will handle the kicking
+        localStorage.clear();
+        location.reload();
     }
 });
 
@@ -349,12 +337,8 @@ dayBtn.addEventListener('click', async () => {
 
 firstJoinBtn.addEventListener('click', async () => {
     const name = playerNameInput.value.trim();
-    if (!name) {
-        alert("Please enter your name!");
-        return;
-    }
+    if (!name) return;
     
-    // Init Audio context
     Object.values(sounds).forEach(s => {
         s.muted = true;
         s.play().then(() => { s.pause(); s.currentTime = 0; s.muted = false; }).catch(() => {});
@@ -368,7 +352,7 @@ firstJoinBtn.addEventListener('click', async () => {
         localStorage.setItem("name", name);
         localStorage.setItem("isHost", "false");
         await set(refP, { name, role: null, statusTags: "" });
-        // Don't hide screen here, wait for DB listener to confirm
+        screenJoin.classList.add("hidden");
     } catch (e) {
         joinStatus.innerText = "Error: " + e.message;
         firstJoinBtn.disabled = false;
@@ -390,7 +374,8 @@ async function performSoftReset() {
         updates[`room/players/${pid}/vestActive`] = false;
     });
     
-    updates["room/host"] = null; // Ensure null in update
+    // Note: We do NOT clear scoreboard here.
+    updates["room/host"] = null; 
     updates["room/night"] = null;
     updates["room/votes"] = null;
     updates["room/pendingResults"] = null;
@@ -446,48 +431,33 @@ onValue(ref(db, "room"), (snap) => {
     const data = snap.val();
     const myId = localStorage.getItem("playerId");
 
-    // --- FIX: HARD RESET & STALE ID CHECK ---
-    // 1. If DB is empty (Hard Reset) -> Kick Everyone
-    if (!data) {
-        if (localStorage.getItem("playerId")) {
-            localStorage.clear();
-            location.reload();
-        }
-        return; // Stop execution
+    // FIX: Scoreboard logic moved UP so it works in Lobby too
+    if (data) {
+        const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
+        scoreTown.innerText = scores.town;
+        scoreMafia.innerText = scores.mafia;
+        if(scoreJester) scoreJester.innerText = scores.jester || 0;
+        scoreboard.classList.remove("hidden");
     }
 
-    // 2. If I have an ID but am not in the DB (Stale Player) -> Kick Me
-    if (myId && (!data.players || !data.players[myId])) {
-        localStorage.clear();
-        location.reload();
-        return;
-    }
-
-    // 3. If no Host (Soft Reset/Lobby) -> Reset Local Host Status & Show Lobby
-    if (!data.host) {
+    // --- LOGIC: HARD RESET / NO HOST ---
+    if (!data || !data.host) {
         if (localStorage.getItem("isHost") === "true") {
              localStorage.setItem("isHost", "false");
         }
         if (myId) {
              screenJoin.classList.add("hidden"); 
              screenGame.classList.add("hidden"); 
-             screenLobby.classList.remove("hidden");
+             screenLobby.classList.remove("hidden"); 
              gameOverModal.classList.add("hidden");
         }
-        return; // Stop execution, wait for Host
+        return;
     }
 
-    // --- Normal Game Flow ---
     if (myId) {
         screenJoin.classList.add("hidden");
         screenJoin.classList.remove("flex-visible");
     }
-
-    const scores = data.scoreboard || { town: 0, mafia: 0, jester: 0 };
-    scoreTown.innerText = scores.town;
-    scoreMafia.innerText = scores.mafia;
-    if(scoreJester) scoreJester.innerText = scores.jester || 0;
-    scoreboard.classList.remove("hidden");
 
     // Dynamic Table Size
     const playerCount = Object.keys(data.players || {}).length;
@@ -507,7 +477,6 @@ onValue(ref(db, "room"), (snap) => {
     // --- SILENCE ON ENTRY ---
     if (isFirstLoad) {
         lastPhase = phase;
-        // Check deck state to prevent immediate deal sound
         if(data.deckDealt) hasDealtLocal = true;
         if(data.hasShuffled) hasShuffledLocal = true;
         isFirstLoad = false;
@@ -526,8 +495,7 @@ onValue(ref(db, "room"), (snap) => {
             playSound('day');
             if(roundCounter) roundCounter.innerText = `Day ${data.roundCount || 1}`;
             const pending = data.pendingResults || {};
-            
-            // --- STRICT SHOTGUN LOGIC ---
+            // Strict Shotgun Logic
             if (pending.nightDeathId) {
                  const me = allPlayersCache[myId];
                  const myRole = me ? me.role : "";
@@ -563,14 +531,12 @@ onValue(ref(db, "room"), (snap) => {
         lastPhase = phase;
     }
 
-    // Shuffle Sound
     if (data.isShuffling && !hasShuffledLocal) {
         playSound('shuffle');
         hasShuffledLocal = true;
     }
     if (!data.isShuffling) hasShuffledLocal = false;
     
-    // Deal Sound
     if (data.deckDealt && !hasDealtLocal) {
         playSound('deal'); 
         hasDealtLocal = true;
@@ -617,10 +583,15 @@ onValue(ref(db, "room"), (snap) => {
     document.getElementById("phaseText").innerText = phase;
     document.body.className = phase === "night" ? "night" : (phase === "day" ? "day" : "");
 
-    // Phase Routing
+    // --- FIX: PHASE ROUTING FOR HOST RECLAIM ---
     if (phase === "Lobby") {
-        screenGame.classList.add("hidden");
-        screenLobby.classList.remove("hidden");
+        if (isHost) {
+            screenLobby.classList.add("hidden");
+            screenGame.classList.remove("hidden");
+        } else {
+            screenGame.classList.add("hidden");
+            screenLobby.classList.remove("hidden");
+        }
         gameOverModal.classList.add("hidden");
     } else {
         screenLobby.classList.add("hidden");
@@ -717,20 +688,28 @@ onValue(ref(db, "room"), (snap) => {
             if (me && !amDead && me.role && !isHost) { 
                 if (phase === "night") {
                     let showAction = false;
-                    // Mafia Logic
-                    if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) showAction = true;
-                    // Doctor Logic
-                    if (myCurrentRole === "doctor") showAction = true;
-                    // Detective Logic
-                    if (myCurrentRole === "detective" && !isMe) showAction = true;
+                    let alreadyVoted = false; // Check for single vote per night
+
+                    if (amIMafia && (p.role !== "mafia" && p.role !== "godfather") && !isMe) {
+                        showAction = true;
+                        if(data.night?.mafiaVotes?.[myId]) alreadyVoted = true;
+                    }
+                    if (myCurrentRole === "doctor") {
+                        showAction = true;
+                        if(data.night?.doctorSave) alreadyVoted = true; // One save total
+                    }
+                    if (myCurrentRole === "detective" && !isMe) {
+                        showAction = true;
+                        if(data.night?.detectiveAction?.[myId]) alreadyVoted = true;
+                    }
                      
-                    if (showAction) {
+                    if (showAction && !alreadyVoted) {
                           actionPanel.classList.remove("hidden");
                           submitActionBtn.disabled = false;
                           createBtn(actionTargets, p.name, pid, submitActionBtn, "target");
                     }
                      
-                    // Vest Logic (Only for self, once)
+                    // Vest Logic
                     if (myCurrentRole === "civilian" && !me.vestUsed && isMe) {
                          if(!document.getElementById("vestBtn")) {
                                 const vestBtn = document.createElement("button");
@@ -739,7 +718,6 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
-                                        // NO SOUND
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
                                     }
                                 };
@@ -750,24 +728,28 @@ onValue(ref(db, "room"), (snap) => {
                 }
                  
                 if (phase === "day" && !isMe) {
-                    votingPanel.classList.remove("hidden");
-                    createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
-                     
-                    const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
-                    if(!skipExists) {
-                        const skipBtn = document.createElement("button");
-                        skipBtn.innerText = "😴 SKIP VOTE";
-                        skipBtn.dataset.pid = "SKIP";
-                        skipBtn.className = "skipBtn";
-                        skipBtn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            // NO SOUND
-                            Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
-                            skipBtn.classList.add("selected");
-                            submitVoteBtn.disabled = false;
-                            submitVoteBtn.dataset.vote = "SKIP";
-                        });
-                        voteTargets.prepend(skipBtn);
+                    let alreadyVotedDay = false;
+                    if(data.votes?.[myId]) alreadyVotedDay = true;
+
+                    if (!alreadyVotedDay) {
+                        votingPanel.classList.remove("hidden");
+                        createBtn(voteTargets, p.name, pid, submitVoteBtn, "vote");
+                         
+                        const skipExists = Array.from(voteTargets.children).find(c => c.dataset.pid === "SKIP");
+                        if(!skipExists) {
+                            const skipBtn = document.createElement("button");
+                            skipBtn.innerText = "😴 SKIP VOTE";
+                            skipBtn.dataset.pid = "SKIP";
+                            skipBtn.className = "skipBtn";
+                            skipBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
+                                skipBtn.classList.add("selected");
+                                submitVoteBtn.disabled = false;
+                                submitVoteBtn.dataset.vote = "SKIP";
+                            });
+                            voteTargets.prepend(skipBtn);
+                        }
                     }
                 }
             } else if (amDead) {
@@ -777,7 +759,6 @@ onValue(ref(db, "room"), (snap) => {
         });
     }
      
-    // Highlight previously selected
     const currentVote = (phase === "day") ? (data.votes?.[myId]) : (data.night?.mafiaVotes?.[myId]);
     const panel = (phase === "day") ? voteTargets : actionTargets;
     if (panel && currentVote) {
@@ -800,7 +781,6 @@ playersList.addEventListener('click', (e) => {
     }
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
-        // NO SOUND
         update(ref(db, `room/players/${target.dataset.pid}`), { role: "civilian", statusTags: "" });
     }
     if (target.classList.contains('viewRoleBtn')) {
@@ -832,7 +812,6 @@ nrCloseBtn.addEventListener('click', () => {
 });
 
 endDayBtn.addEventListener('click', async () => {
-    // NO SOUND
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
@@ -903,7 +882,6 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 submitActionBtn.addEventListener('click', async () => {
-    // NO SOUND
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
     const target = submitActionBtn.dataset.target;
@@ -924,7 +902,6 @@ submitActionBtn.addEventListener('click', async () => {
 });
 
 submitVoteBtn.addEventListener('click', async () => {
-    // NO SOUND
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
