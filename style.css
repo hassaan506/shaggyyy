@@ -1,5 +1,5 @@
 /* ---------------------------------------------
-    STYLE.CSS v22.0 (Final Fixes)
+    STYLE.CSS v25.0 (High Contrast + Bugs)
 --------------------------------------------- */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
 body { min-height: 100vh; padding-top: 60px; transition: background 1s, color 1s; background-color: #1a1a1a; color: #ddd; overflow-x: hidden; user-select: none; -webkit-user-select: none; }
