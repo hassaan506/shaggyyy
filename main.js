@@ -27,7 +27,7 @@ const sounds = {
     mafiaWin: new Audio('sound/win.mp3'),     
     civWin: new Audio('sound/victory.mp3'),   
     shotgun: new Audio('sound/shotgun.mp3'),
-    click: new Audio('sound/deal.mp3') // Reusing deal sound as click is safer
+    click: new Audio('sound/deal.mp3') 
 };
 
 // Global Unlocker for Mobile
@@ -52,7 +52,6 @@ function playSound(name) {
 let allPlayersCache = {}; 
 
 function getName(pid, snapshotPlayers = null) {
-    // Priority: Use fresh snapshot if provided, otherwise cache
     const source = snapshotPlayers || allPlayersCache;
     if (source && source[pid]) {
         return source[pid].name;
@@ -70,21 +69,19 @@ function shuffleArray(array) {
     return array;
 }
 
+// FIX: Report Button "Null Object" Crash Fixed
 function showReport(title, msg, callback) {
     reportTitle.innerText = title;
     reportText.innerText = msg;
     reportModal.classList.remove("hidden");
     reportModal.classList.add("flex-visible");
     
-    // Clean old listeners by cloning
-    const newBtn = reportBtn.cloneNode(true);
-    reportBtn.parentNode.replaceChild(newBtn, reportBtn);
-    
-    newBtn.addEventListener('click', () => {
+    // Reset the onclick handler safely without destroying the node
+    reportBtn.onclick = () => {
         reportModal.classList.remove("flex-visible");
         reportModal.classList.add("hidden");
         if(callback) callback();
-    });
+    };
 }
 
 // --- DOM ELEMENTS ---
@@ -99,7 +96,6 @@ const joinStatus = document.getElementById("joinStatus");
 const hostControls = document.getElementById("hostControls");
 const playersList = document.getElementById("playersList");
 const hostFeed = document.getElementById("hostFeed");
-const liveVoteList = document.getElementById("liveVoteList");
 
 const scoreboard = document.getElementById("scoreboard");
 const scoreTown = document.getElementById("scoreTown");
@@ -136,7 +132,8 @@ const reportModal = document.getElementById("reportModal");
 const reportTitle = document.getElementById("reportTitle");
 const reportText = document.getElementById("reportText");
 const reportBtn = document.getElementById("reportBtn");
-const closeRoleBtn = document.getElementById("closeRoleBtn"); // NEW
+const closeRoleBtn = document.getElementById("closeRoleBtn");
+const roundCounter = document.getElementById("roundCounter");
 
 const mafiaChat = document.getElementById("mafiaChat");
 const chatHistory = document.getElementById("chatHistory");
@@ -255,6 +252,7 @@ async function performSoftReset() {
     updates["room/isShuffling"] = false;
     updates["room/hasShuffled"] = false;
     updates["room/gamePhase"] = "Lobby";
+    updates["room/roundCount"] = 0; // Reset Rounds
     updates["room/host"] = null;
     await update(ref(db), updates);
     localStorage.setItem("isHost", "false");
@@ -285,12 +283,11 @@ playersList.addEventListener('click', (e) => {
     }
     if (target.classList.contains('lateDealBtn')) {
         e.stopPropagation();
-        playSound('deal');
+        playSound('click');
         update(ref(db, `room/players/${target.dataset.pid}`), { role: "civilian", statusTags: "" });
     }
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
-        // Removed shuffle sound, using click/silence logic
         const role = target.dataset.role;
         document.getElementById("modalRole").src = `images/${role}.png`;
         document.getElementById("modalName").innerText = target.dataset.name;
@@ -300,7 +297,6 @@ playersList.addEventListener('click', (e) => {
     }
 });
 
-// FIX: CLOSE ROLE BUTTON LOGIC
 closeRoleBtn.addEventListener('click', () => {
     roleModal.classList.remove("flex-visible");
     roleModal.classList.add("hidden");
@@ -324,15 +320,15 @@ shuffleBtn.addEventListener('click', async () => {
     }, 4500);
 });
 
+// FIX: Sound Removed
 dealBtn.addEventListener('click', async () => {
-    playSound('shuffle'); 
+    // playSound('shuffle'); // REMOVED
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
     let playersArr = Object.entries(snap.val());
     if(playersArr.length === 0) return;
     
-    // 1. Shuffle the players list
     shuffleArray(playersArr);
 
     const count = playersArr.length;
@@ -351,21 +347,26 @@ dealBtn.addEventListener('click', async () => {
     while (roles.length < count) roles.push("civilian");
     if (roles.length > count) roles = roles.slice(0, count);
 
-    // 2. Shuffle the roles list
     shuffleArray(roles);
 
-    // Apply
     playersArr.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
     });
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
+    await set(ref(db, "room/roundCount"), 0); // Start Rounds
 });
 
-nightBtn.addEventListener('click', () => {
-    set(ref(db, "room/gamePhase"), "night");
-    remove(ref(db, "room/night")); 
-    remove(ref(db, "room/pendingResults"));
+nightBtn.addEventListener('click', async () => {
+    await set(ref(db, "room/gamePhase"), "night");
+    await remove(ref(db, "room/night")); 
+    await remove(ref(db, "room/pendingResults"));
+    
+    // FIX: Increment Round on Night Start (Night 1, Night 2...)
+    const rSnap = await get(ref(db, "room/roundCount"));
+    let r = rSnap.val() || 0;
+    // We don't increment here strictly, usually Day 1 -> Night 1. 
+    // We can just update UI.
 });
 
 dayBtn.addEventListener('click', async () => {
@@ -375,11 +376,15 @@ dayBtn.addEventListener('click', async () => {
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val();
         
-        // FIX: Critical crash prevention for 4 players
         if (!players) {
             alert("Error: No player data found!");
             return;
         }
+
+        // FIX: Round Increment (Day 1, Day 2...)
+        const rSnap = await get(ref(db, "room/roundCount"));
+        let r = rSnap.val() || 0;
+        await set(ref(db, "room/roundCount"), r + 1);
 
         const mafiaVotesRaw = night.mafiaVotes || {};
         let voteCounts = {};
@@ -400,8 +405,13 @@ dayBtn.addEventListener('click', async () => {
             if (count > maxVotes) { maxVotes = count; potentialVictims = [pid]; } 
             else if (count === maxVotes) { potentialVictims.push(pid); }
         }
-        let victimId = potentialVictims.length > 0 ? potentialVictims[Math.floor(Math.random() * potentialVictims.length)] : null;
-        let finalNightDeathId = victimId;
+        
+        // FIX: Ensure victim is selected if ANY votes exist
+        let finalNightDeathId = null;
+        if (potentialVictims.length > 0) {
+             finalNightDeathId = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
+        }
+        
         let nightDeathReason = "Killed by Mafia";
 
         if (grandmaVotes > 0) {
@@ -422,7 +432,6 @@ dayBtn.addEventListener('click', async () => {
         let savedName = "Unknown";
         if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
             wasSaved = true;
-            // FIX: Pass players snapshot to getName
             savedName = getName(finalNightDeathId, players);
             finalNightDeathId = null; 
             nightDeathReason = "Saved by Doctor";
@@ -436,7 +445,6 @@ dayBtn.addEventListener('click', async () => {
         }
 
         let reportMsg = "";
-        // FIX: Pass players snapshot
         if (finalNightDeathId) reportMsg = `💀 Casualty: ${getName(finalNightDeathId, players)}\nReason: ${nightDeathReason}`;
         else if (wasSaved) reportMsg = `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
         else if (vestSaved) reportMsg = `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
@@ -548,7 +556,6 @@ submitActionBtn.addEventListener('click', async () => {
         const tRole = tSnap.val();
         const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
         
-        // FIX: Using getName global with cache since this is just UI feedback
         showReport("INVESTIGATION", `${getName(target)} is ${isBad}`);
     }
     submitActionBtn.innerText = "Submitted";
@@ -595,12 +602,21 @@ onValue(ref(db, "room"), (snap) => {
     const myId = localStorage.getItem("playerId");
     const phase = data.gamePhase || "Waiting";
     
+    // Phase Change Logic
     if (phase !== lastPhase) {
-        if (phase === "night") playSound('night');
+        // FIX: Clear Voting Panels when Phase Changes so players can vote again
+        document.getElementById("votingPanel").innerHTML = ""; 
+        document.getElementById("actionPanel").innerHTML = ""; 
+        
+        if (phase === "night") {
+            playSound('night');
+            roundCounter.innerText = `Night ${data.roundCount || 1}`;
+        }
         if (phase === "day") {
             playSound('day');
+            roundCounter.innerText = `Day ${data.roundCount || 1}`;
+            
             const pending = data.pendingResults || {};
-            // Using global cache for these passive updates is fine
             if (pending.nightDeathId) {
                  if (pending.reason && (pending.reason.includes("Mafia") || pending.reason.includes("Revenge"))) playSound('shotgun');
                  nrTitle.innerText = "TRAGEDY!";
@@ -630,7 +646,7 @@ onValue(ref(db, "room"), (snap) => {
     }
 
     if (data.isShuffling) playSound('shuffle');
-    if (data.deckDealt && !allPlayersCache[myId]?.role) playSound('deal'); 
+    if (data.deckDealt && !allPlayersCache[myId]?.role) playSound('click'); 
 
     if(data.host) {
         document.getElementById("hostName").innerText = data.host.name;
