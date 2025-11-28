@@ -26,7 +26,8 @@ const sounds = {
     day: new Audio('sound/rooster.mp3'),
     mafiaWin: new Audio('sound/win.mp3'),     
     civWin: new Audio('sound/victory.mp3'),   
-    shotgun: new Audio('sound/shotgun.mp3')
+    shotgun: new Audio('sound/shotgun.mp3'),
+    click: new Audio('sound/deal.mp3') // Reusing deal sound as click is safer
 };
 
 // Global Unlocker for Mobile
@@ -47,18 +48,18 @@ function playSound(name) {
     } catch(e) { console.log("Sound error", e); }
 }
 
-// --- UTILS (Moved to Top for Safety) ---
+// --- UTILS ---
 let allPlayersCache = {}; 
 
-// FIX: Helper function is now global so dayBtn can find it
-function getName(pid) {
-    if (allPlayersCache && allPlayersCache[pid]) {
-        return allPlayersCache[pid].name;
+function getName(pid, snapshotPlayers = null) {
+    // Priority: Use fresh snapshot if provided, otherwise cache
+    const source = snapshotPlayers || allPlayersCache;
+    if (source && source[pid]) {
+        return source[pid].name;
     }
     return "Unknown Player";
 }
 
-// FIX: Stronger Shuffle Logic
 function shuffleArray(array) {
     let currentIndex = array.length, randomIndex;
     while (currentIndex != 0) {
@@ -72,11 +73,16 @@ function shuffleArray(array) {
 function showReport(title, msg, callback) {
     reportTitle.innerText = title;
     reportText.innerText = msg;
-    reportModal.classList.add("flex-visible"); // Use class toggle
+    reportModal.classList.remove("hidden");
+    reportModal.classList.add("flex-visible");
+    
+    // Clean old listeners by cloning
     const newBtn = reportBtn.cloneNode(true);
     reportBtn.parentNode.replaceChild(newBtn, reportBtn);
+    
     newBtn.addEventListener('click', () => {
         reportModal.classList.remove("flex-visible");
+        reportModal.classList.add("hidden");
         if(callback) callback();
     });
 }
@@ -130,6 +136,7 @@ const reportModal = document.getElementById("reportModal");
 const reportTitle = document.getElementById("reportTitle");
 const reportText = document.getElementById("reportText");
 const reportBtn = document.getElementById("reportBtn");
+const closeRoleBtn = document.getElementById("closeRoleBtn"); // NEW
 
 const mafiaChat = document.getElementById("mafiaChat");
 const chatHistory = document.getElementById("chatHistory");
@@ -155,7 +162,6 @@ if (localStorage.getItem("playerId") && localStorage.getItem("name")) {
 }
 
 firstJoinBtn.addEventListener('click', async () => {
-    // FIX: MOBILE AUDIO UNLOCK (Without fallback mapping)
     Object.values(sounds).forEach(s => {
         s.muted = true;
         s.play().then(() => {
@@ -165,7 +171,7 @@ firstJoinBtn.addEventListener('click', async () => {
         }).catch(() => {});
     });
 
-    playSound('deal'); // Use short deal sound for join click
+    playSound('click'); 
     const name = playerNameInput.value.trim();
     if (!name) { joinStatus.innerText = "Please enter a name."; return; }
     firstJoinBtn.disabled = true;
@@ -188,7 +194,7 @@ firstJoinBtn.addEventListener('click', async () => {
 // 2. LOBBY & HOST
 // --------------------------------------------------
 claimHostBtn.addEventListener('click', async () => {
-    playSound('deal');
+    playSound('click');
     const myName = localStorage.getItem("name");
     const myTempId = localStorage.getItem("playerId");
     if(!myName) return location.reload();
@@ -282,21 +288,29 @@ playersList.addEventListener('click', (e) => {
         playSound('deal');
         update(ref(db, `room/players/${target.dataset.pid}`), { role: "civilian", statusTags: "" });
     }
-    // FIX: Eye Button logic updated
     if (target.classList.contains('viewRoleBtn')) {
         e.stopPropagation();
-        playSound('deal');
+        // Removed shuffle sound, using click/silence logic
         const role = target.dataset.role;
         document.getElementById("modalRole").src = `images/${role}.png`;
         document.getElementById("modalName").innerText = target.dataset.name;
         document.getElementById("modalRoleText").innerText = `Role: ${role.toUpperCase()}`;
-        // Use classList add to force visibility
+        document.getElementById("roleModal").classList.remove("hidden");
         document.getElementById("roleModal").classList.add("flex-visible");
     }
 });
 
+// FIX: CLOSE ROLE BUTTON LOGIC
+closeRoleBtn.addEventListener('click', () => {
+    roleModal.classList.remove("flex-visible");
+    roleModal.classList.add("hidden");
+});
+
 window.onclick = function(event) {
-    if (event.target == roleModal) roleModal.classList.remove("flex-visible");
+    if (event.target == roleModal) {
+        roleModal.classList.remove("flex-visible");
+        roleModal.classList.add("hidden");
+    }
     if (event.target == nightResultModal) nightResultModal.classList.add("hidden");
 }
 
@@ -311,11 +325,10 @@ shuffleBtn.addEventListener('click', async () => {
 });
 
 dealBtn.addEventListener('click', async () => {
-    playSound('deal'); 
+    playSound('shuffle'); 
     const snap = await get(ref(db, "room/players"));
     if (!snap.exists()) return alert("No players.");
     
-    // FIX: Shuffle Logic Check
     let playersArr = Object.entries(snap.val());
     if(playersArr.length === 0) return;
     
@@ -356,13 +369,17 @@ nightBtn.addEventListener('click', () => {
 });
 
 dayBtn.addEventListener('click', async () => {
-    // FIX: Try/Catch with Alert to catch Day Button failures
     try {
         const nightSnap = await get(ref(db, "room/night"));
         const night = nightSnap.val() || {};
         const playersSnap = await get(ref(db, "room/players"));
         const players = playersSnap.val();
-        if (!players) throw new Error("No players found");
+        
+        // FIX: Critical crash prevention for 4 players
+        if (!players) {
+            alert("Error: No player data found!");
+            return;
+        }
 
         const mafiaVotesRaw = night.mafiaVotes || {};
         let voteCounts = {};
@@ -405,7 +422,8 @@ dayBtn.addEventListener('click', async () => {
         let savedName = "Unknown";
         if (finalNightDeathId && finalNightDeathId === night.doctorSave) {
             wasSaved = true;
-            savedName = getName(finalNightDeathId);
+            // FIX: Pass players snapshot to getName
+            savedName = getName(finalNightDeathId, players);
             finalNightDeathId = null; 
             nightDeathReason = "Saved by Doctor";
         }
@@ -418,7 +436,8 @@ dayBtn.addEventListener('click', async () => {
         }
 
         let reportMsg = "";
-        if (finalNightDeathId) reportMsg = `💀 Casualty: ${getName(finalNightDeathId)}\nReason: ${nightDeathReason}`;
+        // FIX: Pass players snapshot
+        if (finalNightDeathId) reportMsg = `💀 Casualty: ${getName(finalNightDeathId, players)}\nReason: ${nightDeathReason}`;
         else if (wasSaved) reportMsg = `🛡️ Mafia targeted ${savedName}, but they were SAVED by the Doctor!`;
         else if (vestSaved) reportMsg = `🛡️ The Mafia attacked someone, but the bullet bounced off! (Vest Used)`;
         else reportMsg = `🛡️ No one died tonight.`;
@@ -435,7 +454,7 @@ dayBtn.addEventListener('click', async () => {
     
     } catch (e) { 
         console.error(e);
-        alert("Day Button Error: " + e.message); // Debug Alert
+        alert("Day Logic Error: " + e.message);
     }
 });
 
@@ -444,7 +463,7 @@ nrCloseBtn.addEventListener('click', () => {
 });
 
 endDayBtn.addEventListener('click', async () => {
-    playSound('deal');
+    playSound('click');
     const pendingSnap = await get(ref(db, "room/pendingResults"));
     const pending = pendingSnap.val() || {};
     const votesSnap = await get(ref(db, "room/votes"));
@@ -474,12 +493,12 @@ endDayBtn.addEventListener('click', async () => {
     }
 
     let report = "";
-    if (pending.nightDeathId) report += `💀 Night Casualty: ${getName(pending.nightDeathId)}\n`;
+    if (pending.nightDeathId) report += `💀 Night Casualty: ${getName(pending.nightDeathId, players)}\n`;
     else report += `🛡️ Night: No casualties.\n`;
 
     if (elimId && elimId !== "SKIP") {
         await pushTag(elimId, "ELIMINATED");
-        report += `⚖️ Voted Out: ${getName(elimId)}\n`;
+        report += `⚖️ Voted Out: ${getName(elimId, players)}\n`;
     } else if (elimId === "SKIP") {
         report += `💤 Town voted to SKIP.\n`;
     } else {
@@ -515,7 +534,7 @@ onValue(ref(db, "room/night/chat"), (snap) => {
 });
 
 submitActionBtn.addEventListener('click', async () => {
-    playSound('deal');
+    playSound('click');
     const pid = localStorage.getItem("playerId");
     const role = myCurrentRole; 
     const target = submitActionBtn.dataset.target;
@@ -528,6 +547,8 @@ submitActionBtn.addEventListener('click', async () => {
         const tSnap = await get(ref(db, `room/players/${target}/role`));
         const tRole = tSnap.val();
         const isBad = (tRole === "mafia") ? "YES (Mafia)" : "NO (Innocent)"; 
+        
+        // FIX: Using getName global with cache since this is just UI feedback
         showReport("INVESTIGATION", `${getName(target)} is ${isBad}`);
     }
     submitActionBtn.innerText = "Submitted";
@@ -536,7 +557,7 @@ submitActionBtn.addEventListener('click', async () => {
 });
 
 submitVoteBtn.addEventListener('click', async () => {
-    playSound('deal');
+    playSound('click');
     const pid = localStorage.getItem("playerId");
     const target = submitVoteBtn.dataset.vote;
     if(!target) return alert("Select a player first!");
@@ -579,6 +600,7 @@ onValue(ref(db, "room"), (snap) => {
         if (phase === "day") {
             playSound('day');
             const pending = data.pendingResults || {};
+            // Using global cache for these passive updates is fine
             if (pending.nightDeathId) {
                  if (pending.reason && (pending.reason.includes("Mafia") || pending.reason.includes("Revenge"))) playSound('shotgun');
                  nrTitle.innerText = "TRAGEDY!";
@@ -766,7 +788,7 @@ onValue(ref(db, "room"), (snap) => {
                                 vestBtn.innerText = "🛡️ WEAR VEST (One Time)";
                                 vestBtn.onclick = async () => {
                                     if(confirm("Use your ONE bulletproof vest tonight?")) {
-                                        playSound('deal');
+                                        playSound('click');
                                         await update(ref(db, `room/players/${myId}`), { vestUsed: true, vestActive: true });
                                     }
                                 };
@@ -799,7 +821,7 @@ onValue(ref(db, "room"), (snap) => {
                             skipBtn.className = "skipBtn";
                             skipBtn.addEventListener('click', (e) => {
                                 e.preventDefault();
-                                playSound('deal');
+                                playSound('click');
                                 Array.from(voteTargets.children).forEach(c => c.classList.remove("selected"));
                                 skipBtn.classList.add("selected");
                                 submitVoteBtn.disabled = false;
@@ -826,7 +848,7 @@ function createBtn(container, name, pid, btn, datasetKey) {
     b.dataset.pid = pid;
     b.addEventListener('click', (e) => {
         e.preventDefault(); 
-        playSound('deal');
+        playSound('click');
         Array.from(container.children).forEach(c => c.classList.remove("selected"));
         b.classList.add("selected");
         btn.disabled = false;
