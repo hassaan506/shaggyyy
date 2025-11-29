@@ -209,7 +209,7 @@ shuffleBtn.addEventListener('click', async () => {
     setTimeout(async () => {
         await set(ref(db, "room/isShuffling"), false);
         await set(ref(db, "room/hasShuffled"), true);
-    }, 4500);
+    }, 4200);
 });
 
 dealBtn.addEventListener('click', async () => {
@@ -217,27 +217,54 @@ dealBtn.addEventListener('click', async () => {
     if (!snap.exists()) return alert("No players.");
     let playersArr = Object.entries(snap.val());
     if(playersArr.length === 0) return;
+    
+    // 1. Shuffle players first
     shuffleArray(playersArr);
 
     const count = playersArr.length;
     let roles = [];
-    let badGuyCount = count >= 8 ? 3 : (count >= 6 ? 2 : 1);
+
+    // --- MAFIA COUNT ---
+    // 9+ players = 3 Mafia
+    // 6-8 players = 2 Mafia
+    // 1-5 players = 1 Mafia
+    let badGuyCount = count >= 9 ? 3 : (count >= 6 ? 2 : 1);
+
     if (badGuyCount === 1) roles.push(Math.random() < 0.5 ? "godfather" : "mafia");
     else {
         roles.push("godfather");
         for (let i = 1; i < badGuyCount; i++) roles.push("mafia");
     }
-    roles.push("doctor");
-    roles.push("detective");
-    if (count > 5) roles.push("grandma");
-    if (count > 7) roles.push("jester");
+
+    // --- POWER ROLES (50/50 Logic for Small Games) ---
+    if (count <= 5) {
+        // Small Game (1-5 players): Only 1 Power Role (Doctor OR Detective)
+        if (Math.random() < 0.5) roles.push("doctor");
+        else roles.push("detective");
+    } else {
+        // Big Game (6+ players): Both exist
+        roles.push("doctor");
+        roles.push("detective");
+    }
+
+    // --- EXTRA ROLES ---
+    if (count > 5) roles.push("grandma"); // 6+ players
+    if (count > 7) roles.push("jester");  // 8+ players
+
+    // --- FILLER ---
     while (roles.length < count) roles.push("civilian");
+    
+    // Safety slice just in case
     if (roles.length > count) roles = roles.slice(0, count);
+    
+    // 2. Shuffle roles
     shuffleArray(roles);
 
+    // 3. Update Database
     playersArr.forEach(([pid], i) => {
         update(ref(db, `room/players/${pid}`), { role: roles[i], statusTags: "", vestUsed: false, vestActive: false });
     });
+    
     await set(ref(db, "room/deckDealt"), true);
     await set(ref(db, "room/gamePhase"), "Roles Assigned");
     await set(ref(db, "room/roundCount"), 0);
@@ -912,4 +939,5 @@ onValue(ref(db, "room/publicReport"), (snap) => {
     const msg = snap.val();
     if (msg) showReport("📢 DAILY NEWS", msg);
 });
+
 
