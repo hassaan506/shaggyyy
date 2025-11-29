@@ -413,7 +413,7 @@ async function checkWinCondition() {
      });
      const scoreSnap = await get(ref(db, "room/scoreboard"));
      let scores = scoreSnap.val() || { town: 0, mafia: 0, jester: 0 };
-     if (mafiaCount >= townCount && mafiaCount > 0) {
+     if (townCount === 0 && mafiaCount > 0) {
          scores.mafia++;
          await update(ref(db, "room/scoreboard"), scores);
          await set(ref(db, "room/winMessage"), "🕵️ MAFIA WINS!");
@@ -912,3 +912,4 @@ onValue(ref(db, "room/publicReport"), (snap) => {
     const msg = snap.val();
     if (msg) showReport("📢 DAILY NEWS", msg);
 });
+
